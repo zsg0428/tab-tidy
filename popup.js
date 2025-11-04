@@ -292,46 +292,58 @@ async function saveAllTabs() {
 
   if (!groupName) return;
 
-  // Check for duplicate name
-  const result = await chrome.storage.local.get('savedGroups');
-  const savedGroups = result.savedGroups || [];
-  const existingGroup = savedGroups.find(g => g.name.toLowerCase() === groupName.toLowerCase());
+  showLoading('Saving tabs...');
 
-  if (existingGroup) {
-    const overwrite = confirm(`A group named "${groupName}" already exists. Do you want to overwrite it?`);
-    if (!overwrite) {
-      // Ask for new name
-      saveAllTabs();
-      return;
+  try {
+    // Check for duplicate name
+    const result = await chrome.storage.local.get('savedGroups');
+    const savedGroups = result.savedGroups || [];
+    const existingGroup = savedGroups.find(g => g.name.toLowerCase() === groupName.toLowerCase());
+
+    if (existingGroup) {
+      hideLoading();
+      const overwrite = confirm(`A group named "${groupName}" already exists. Do you want to overwrite it?`);
+      if (!overwrite) {
+        // Ask for new name
+        saveAllTabs();
+        return;
+      }
+      showLoading('Saving tabs...');
+      // Remove existing group
+      const filteredGroups = savedGroups.filter(g => g.id !== existingGroup.id);
+      await chrome.storage.local.set({ savedGroups: filteredGroups });
     }
-    // Remove existing group
-    const filteredGroups = savedGroups.filter(g => g.id !== existingGroup.id);
-    await chrome.storage.local.set({ savedGroups: filteredGroups });
+
+    const tabGroup = {
+      id: Date.now().toString(),
+      name: groupName,
+      timestamp: Date.now(),
+      tabs: allTabs.map(tab => ({
+        title: tab.title,
+        url: tab.url,
+        favIconUrl: tab.favIconUrl
+      }))
+    };
+
+    // Save to storage
+    const updatedGroups = await chrome.storage.local.get('savedGroups');
+    const groups = updatedGroups.savedGroups || [];
+    groups.unshift(tabGroup);
+
+    await chrome.storage.local.set({ savedGroups: groups });
+
+    hideLoading();
+
+    // Show custom dialog for closing tabs
+    showCloseTabsDialog(tabGroup.tabs);
+
+    await loadSavedGroups();
+    showNotification(`Saved ${allTabs.length} tabs`, 'success');
+  } catch (error) {
+    hideLoading();
+    showNotification('Error saving tabs', 'error');
+    console.error('Error saving tabs:', error);
   }
-
-  const tabGroup = {
-    id: Date.now().toString(),
-    name: groupName,
-    timestamp: Date.now(),
-    tabs: allTabs.map(tab => ({
-      title: tab.title,
-      url: tab.url,
-      favIconUrl: tab.favIconUrl
-    }))
-  };
-
-  // Save to storage
-  const updatedGroups = await chrome.storage.local.get('savedGroups');
-  const groups = updatedGroups.savedGroups || [];
-  groups.unshift(tabGroup);
-
-  await chrome.storage.local.set({ savedGroups: groups });
-
-  // Show custom dialog for closing tabs
-  showCloseTabsDialog(tabGroup.tabs);
-
-  await loadSavedGroups();
-  showNotification(`Saved ${allTabs.length} tabs`, 'success');
 }
 
 // Show custom dialog for closing tabs
@@ -573,9 +585,13 @@ function renderSavedGroups(groups) {
 
 // Restore group
 async function restoreGroup(group) {
+  showLoading('Restoring tabs...');
+
   for (const tab of group.tabs) {
     await chrome.tabs.create({ url: tab.url, active: false });
   }
+
+  hideLoading();
   showNotification(`Restored ${group.tabs.length} tabs`);
   window.close();
 }
@@ -624,6 +640,20 @@ function showNotification(message, type = 'success') {
   setTimeout(() => {
     toast.classList.remove('show');
   }, 3000);
+}
+
+// Show loading spinner
+function showLoading(text = 'Loading...') {
+  const spinner = document.getElementById('loadingSpinner');
+  const loadingText = spinner.querySelector('.loading-text');
+  loadingText.textContent = text;
+  spinner.style.display = 'flex';
+}
+
+// Hide loading spinner
+function hideLoading() {
+  const spinner = document.getElementById('loadingSpinner');
+  spinner.style.display = 'none';
 }
 
 // Show help dialog
@@ -786,6 +816,9 @@ async function restoreSelectedGroups() {
 
   if (groupsToRestore.length === 0) return;
 
+  // Show loading
+  showLoading('Restoring tabs...');
+
   // Restore all selected groups
   for (const group of groupsToRestore) {
     for (const tab of group.tabs) {
@@ -793,6 +826,7 @@ async function restoreSelectedGroups() {
     }
   }
 
+  hideLoading();
   showNotification(`Restored ${groupsToRestore.length} group${groupsToRestore.length !== 1 ? 's' : ''}`, 'success');
 
   // Exit select mode
@@ -812,18 +846,28 @@ async function deleteSelectedGroups() {
     return;
   }
 
-  const result = await chrome.storage.local.get('savedGroups');
-  const savedGroups = result.savedGroups || [];
-  const filtered = savedGroups.filter(g => !selectedGroups.has(g.id));
+  showLoading('Deleting groups...');
 
-  await chrome.storage.local.set({ savedGroups: filtered });
+  try {
+    const result = await chrome.storage.local.get('savedGroups');
+    const savedGroups = result.savedGroups || [];
+    const filtered = savedGroups.filter(g => !selectedGroups.has(g.id));
 
-  showNotification(`Deleted ${selectedGroups.size} group${selectedGroups.size !== 1 ? 's' : ''}`, 'info');
+    await chrome.storage.local.set({ savedGroups: filtered });
 
-  // Clear selections and exit select mode
-  selectedGroups.clear();
-  toggleSelectMode();
-  await loadSavedGroups();
+    hideLoading();
+
+    showNotification(`Deleted ${selectedGroups.size} group${selectedGroups.size !== 1 ? 's' : ''}`, 'info');
+
+    // Clear selections and exit select mode
+    selectedGroups.clear();
+    toggleSelectMode();
+    await loadSavedGroups();
+  } catch (error) {
+    hideLoading();
+    showNotification('Error deleting groups', 'error');
+    console.error('Error deleting groups:', error);
+  }
 }
 
 // ===== Current Tabs Batch Operations =====
@@ -918,49 +962,61 @@ async function saveSelectedTabs() {
   const groupName = prompt('Enter a name for this tab group:');
   if (!groupName) return;
 
-  // Check for duplicate name
-  const result = await chrome.storage.local.get('savedGroups');
-  const savedGroups = result.savedGroups || [];
-  const existingGroup = savedGroups.find(g => g.name.toLowerCase() === groupName.toLowerCase());
+  showLoading('Saving selected tabs...');
 
-  if (existingGroup) {
-    const overwrite = confirm(`A group named "${groupName}" already exists. Do you want to overwrite it?`);
-    if (!overwrite) {
-      // Ask for new name
-      await saveSelectedTabs();
-      return;
+  try {
+    // Check for duplicate name
+    const result = await chrome.storage.local.get('savedGroups');
+    const savedGroups = result.savedGroups || [];
+    const existingGroup = savedGroups.find(g => g.name.toLowerCase() === groupName.toLowerCase());
+
+    if (existingGroup) {
+      hideLoading();
+      const overwrite = confirm(`A group named "${groupName}" already exists. Do you want to overwrite it?`);
+      if (!overwrite) {
+        // Ask for new name
+        await saveSelectedTabs();
+        return;
+      }
+      showLoading('Saving selected tabs...');
+      // Remove existing group
+      const filteredGroups = savedGroups.filter(g => g.id !== existingGroup.id);
+      await chrome.storage.local.set({ savedGroups: filteredGroups });
     }
-    // Remove existing group
-    const filteredGroups = savedGroups.filter(g => g.id !== existingGroup.id);
-    await chrome.storage.local.set({ savedGroups: filteredGroups });
+
+    const tabsToSave = allTabs.filter(tab => selectedTabs.has(tab.id));
+
+    const tabGroup = {
+      id: Date.now().toString(),
+      name: groupName,
+      timestamp: Date.now(),
+      tabs: tabsToSave.map(tab => ({
+        title: tab.title,
+        url: tab.url,
+        favIconUrl: tab.favIconUrl
+      }))
+    };
+
+    // Save to storage
+    const updatedResult = await chrome.storage.local.get('savedGroups');
+    const groups = updatedResult.savedGroups || [];
+    groups.unshift(tabGroup);
+
+    await chrome.storage.local.set({ savedGroups: groups });
+
+    hideLoading();
+
+    showNotification(`Saved ${selectedTabs.size} tab${selectedTabs.size !== 1 ? 's' : ''}`, 'success');
+
+    // Clear selections and exit select mode
+    selectedTabs.clear();
+    toggleTabSelectMode();
+    await loadSavedGroups();
+  } catch (error) {
+    hideLoading();
+    showNotification('Error saving selected tabs', 'error');
+    console.error('Error saving selected tabs:', error);
   }
-
-  const tabsToSave = allTabs.filter(tab => selectedTabs.has(tab.id));
-
-  const tabGroup = {
-    id: Date.now().toString(),
-    name: groupName,
-    timestamp: Date.now(),
-    tabs: tabsToSave.map(tab => ({
-      title: tab.title,
-      url: tab.url,
-      favIconUrl: tab.favIconUrl
-    }))
-  };
-
-  // Save to storage
-  const updatedResult = await chrome.storage.local.get('savedGroups');
-  const groups = updatedResult.savedGroups || [];
-  groups.unshift(tabGroup);
-
-  await chrome.storage.local.set({ savedGroups: groups });
-
-  showNotification(`Saved ${selectedTabs.size} tab${selectedTabs.size !== 1 ? 's' : ''}`, 'success');
-
-  // Clear selections and exit select mode
-  selectedTabs.clear();
-  toggleTabSelectMode();
-  await loadSavedGroups();
 }
 
 // Close selected tabs
@@ -970,25 +1026,35 @@ async function closeSelectedTabs() {
     return;
   }
 
-  const tabIdsToClose = Array.from(selectedTabs);
+  showLoading('Closing tabs...');
 
-  // Check if we're closing all tabs
-  const currentTabs = await chrome.tabs.query({ currentWindow: true });
-  const currentNonPinnedTabs = currentTabs.filter(tab => !tab.pinned);
+  try {
+    const tabIdsToClose = Array.from(selectedTabs);
 
-  if (tabIdsToClose.length >= currentNonPinnedTabs.length) {
-    // Create new tab first to prevent window from closing
-    await chrome.tabs.create({ url: 'chrome://newtab', active: false });
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // Check if we're closing all tabs
+    const currentTabs = await chrome.tabs.query({ currentWindow: true });
+    const currentNonPinnedTabs = currentTabs.filter(tab => !tab.pinned);
+
+    if (tabIdsToClose.length >= currentNonPinnedTabs.length) {
+      // Create new tab first to prevent window from closing
+      await chrome.tabs.create({ url: 'chrome://newtab', active: false });
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+
+    // Close the tabs
+    await chrome.tabs.remove(tabIdsToClose);
+
+    hideLoading();
+
+    showNotification(`Closed ${tabIdsToClose.length} tab${tabIdsToClose.length !== 1 ? 's' : ''}`, 'info');
+
+    // Clear selections and exit select mode
+    selectedTabs.clear();
+    toggleTabSelectMode();
+    await loadTabs();
+  } catch (error) {
+    hideLoading();
+    showNotification('Error closing tabs', 'error');
+    console.error('Error closing tabs:', error);
   }
-
-  // Close the tabs
-  await chrome.tabs.remove(tabIdsToClose);
-
-  showNotification(`Closed ${tabIdsToClose.length} tab${tabIdsToClose.length !== 1 ? 's' : ''}`, 'info');
-
-  // Clear selections and exit select mode
-  selectedTabs.clear();
-  toggleTabSelectMode();
-  await loadTabs();
 }
