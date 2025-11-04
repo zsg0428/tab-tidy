@@ -12,6 +12,11 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
+// Listen for messages from popup (for future features)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Future message handlers can be added here
+});
+
 // Track tab activity for future features (inactive tab detection)
 const tabActivity = new Map();
 

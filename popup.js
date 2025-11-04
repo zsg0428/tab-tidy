@@ -265,14 +265,15 @@ async function saveAllTabs() {
   await chrome.storage.local.set({ savedGroups });
 
   // Show custom dialog for closing tabs
-  showCloseTabsDialog(allTabs.length);
+  showCloseTabsDialog(tabGroup.tabs);
 
   await loadSavedGroups();
   showNotification(`Saved ${allTabs.length} tabs`, 'success');
 }
 
 // Show custom dialog for closing tabs
-function showCloseTabsDialog(tabCount) {
+function showCloseTabsDialog(savedTabs) {
+  const tabCount = savedTabs.length;
   const dialog = document.createElement('div');
   dialog.className = 'custom-dialog';
   dialog.innerHTML = `
@@ -301,23 +302,50 @@ function showCloseTabsDialog(tabCount) {
   });
 
   // Close tabs
-  document.getElementById('closeTabsBtn').addEventListener('click', async () => {
-    // Get all tabs in current window
-    const allWindowTabs = await chrome.tabs.query({ currentWindow: true });
+  document.getElementById('closeTabsBtn').addEventListener('click', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
 
-    // Filter out pinned tabs (keep them)
-    const tabsToClose = allTabs.filter(tab => !tab.pinned);
+    // Disable buttons to prevent double clicks
+    const closeBtn = document.getElementById('closeTabsBtn');
+    const keepBtn = document.getElementById('keepTabsBtn');
+    closeBtn.disabled = true;
+    keepBtn.disabled = true;
 
-    // If closing all tabs would close the window, keep one or create new tab
-    if (tabsToClose.length === allWindowTabs.length) {
-      // Create a new tab first to prevent window from closing
-      await chrome.tabs.create({ url: 'chrome://newtab', active: true });
+    const closeBtnContent = closeBtn.innerHTML;
+    closeBtn.innerHTML = '<span>Closing...</span>';
+
+    try {
+      // Get all info we need
+      const savedUrls = new Set(savedTabs.map(t => t.url));
+      const currentTabs = await chrome.tabs.query({ currentWindow: true });
+      const tabsToClose = currentTabs.filter(tab => !tab.pinned && savedUrls.has(tab.url));
+      const tabIdsToClose = tabsToClose.map(t => t.id);
+      const currentNonPinnedTabs = currentTabs.filter(tab => !tab.pinned);
+
+      // If we're about to close all tabs, create a new one first
+      if (tabIdsToClose.length >= currentNonPinnedTabs.length) {
+        await chrome.tabs.create({ url: 'chrome://newtab', active: false });
+        // Wait for new tab to be fully created
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      // Close the tabs
+      if (tabIdsToClose.length > 0) {
+        await chrome.tabs.remove(tabIdsToClose);
+      }
+
+      // Success! Now close dialog
+      document.body.removeChild(dialog);
+      showNotification(`Closed ${tabIdsToClose.length} tabs`, 'info');
+
+    } catch (error) {
+      console.error('Error closing tabs:', error);
+      showNotification('Error: ' + error.message, 'error');
+      closeBtn.disabled = false;
+      keepBtn.disabled = false;
+      closeBtn.innerHTML = '<span>Close Tabs</span><span class="btn-hint">Free up memory</span>';
     }
-
-    // Close the tabs
-    await chrome.tabs.remove(tabsToClose.map(t => t.id));
-    document.body.removeChild(dialog);
-    showNotification(`Closed ${tabsToClose.length} tabs`, 'info');
   });
 
   // Click overlay to dismiss (keep tabs)
