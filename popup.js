@@ -130,22 +130,42 @@ function createTabItem(tab) {
   const item = document.createElement('div');
   item.className = 'tab-item';
 
-  const favicon = tab.favIconUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="14" font-size="14">📄</text></svg>';
+  // Create favicon image
+  const img = document.createElement('img');
+  img.width = 16;
+  img.height = 16;
 
-  item.innerHTML = `
-    <img src="${favicon}" alt="" onerror="this.src='data:image/svg+xml,<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 16 16&quot;><text y=&quot;14&quot; font-size=&quot;14&quot;>📄</text></svg>'">
-    <span class="tab-title" title="${escapeHtml(tab.title)}">${escapeHtml(tab.title)}</span>
-    <button class="close-btn" title="Close tab">❌</button>
-  `;
+  if (tab.favIconUrl && tab.favIconUrl.startsWith('http')) {
+    img.src = tab.favIconUrl;
+    img.onerror = () => {
+      img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"%3E%3Ctext y="14" font-size="14"%3E📄%3C/text%3E%3C/svg%3E';
+    };
+  } else {
+    img.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"%3E%3Ctext y="14" font-size="14"%3E📄%3C/text%3E%3C/svg%3E';
+  }
+
+  const title = document.createElement('span');
+  title.className = 'tab-title';
+  title.textContent = tab.title;
+  title.title = tab.title;
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'close-btn';
+  closeBtn.title = 'Close tab';
+  closeBtn.textContent = '❌';
+
+  item.appendChild(img);
+  item.appendChild(title);
+  item.appendChild(closeBtn);
 
   // Click to switch to tab
-  item.querySelector('.tab-title').addEventListener('click', async () => {
+  title.addEventListener('click', async () => {
     await chrome.tabs.update(tab.id, { active: true });
     window.close();
   });
 
   // Click to close tab
-  item.querySelector('.close-btn').addEventListener('click', async (e) => {
+  closeBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
     await chrome.tabs.remove(tab.id);
     await loadTabs();
@@ -240,14 +260,53 @@ async function saveAllTabs() {
 
   await chrome.storage.local.set({ savedGroups });
 
-  // Close tabs (optional - ask user)
-  const shouldClose = confirm(`Group saved! Close ${allTabs.length} tabs?`);
-  if (shouldClose) {
-    await chrome.tabs.remove(allTabs.map(t => t.id));
-  }
+  // Show custom dialog for closing tabs
+  showCloseTabsDialog(allTabs.length);
 
   await loadSavedGroups();
-  showNotification(`Saved ${allTabs.length} tabs`);
+  showNotification(`Saved ${allTabs.length} tabs`, 'success');
+}
+
+// Show custom dialog for closing tabs
+function showCloseTabsDialog(tabCount) {
+  const dialog = document.createElement('div');
+  dialog.className = 'custom-dialog';
+  dialog.innerHTML = `
+    <div class="dialog-overlay"></div>
+    <div class="dialog-content">
+      <h3>Group Saved!</h3>
+      <p>What would you like to do with the ${tabCount} tab${tabCount !== 1 ? 's' : ''}?</p>
+      <div class="dialog-actions">
+        <button class="dialog-btn secondary" id="keepTabsBtn">
+          <span>Keep Open</span>
+          <span class="btn-hint">Continue browsing</span>
+        </button>
+        <button class="dialog-btn primary" id="closeTabsBtn">
+          <span>Close Tabs</span>
+          <span class="btn-hint">Free up memory</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  // Keep tabs open
+  document.getElementById('keepTabsBtn').addEventListener('click', () => {
+    document.body.removeChild(dialog);
+  });
+
+  // Close tabs
+  document.getElementById('closeTabsBtn').addEventListener('click', async () => {
+    await chrome.tabs.remove(allTabs.map(t => t.id));
+    document.body.removeChild(dialog);
+    showNotification('Tabs closed', 'info');
+  });
+
+  // Click overlay to dismiss (keep tabs)
+  dialog.querySelector('.dialog-overlay').addEventListener('click', () => {
+    document.body.removeChild(dialog);
+  });
 }
 
 // Load saved groups
