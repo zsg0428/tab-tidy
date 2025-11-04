@@ -34,11 +34,19 @@ body {
 .header h1 {
   font-size: 20px;
   font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.header-subtitle {
+  font-size: 11px;
+  opacity: 0.9;
+  font-weight: 400;
 }
 
 .header-actions {
   display: flex;
   gap: 8px;
+  margin-left: auto;
 }
 
 /* Search */
@@ -600,4 +608,62 @@ body {
     transform: translateY(0);
     opacity: 1;
   }
+}
+
+/* Help Dialog */
+.help-content {
+  max-width: 440px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.help-content h3 {
+  margin-bottom: 16px;
+  color: #4fc3f7;
+}
+
+.help-section {
+  margin-bottom: 20px;
+}
+
+.help-section h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 8px;
+}
+
+.help-section ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.help-section li {
+  padding: 6px 0;
+  font-size: 13px;
+  color: #4a5568;
+  line-height: 1.5;
+}
+
+.help-section li strong {
+  color: #2d3748;
+  font-weight: 600;
+}
+
+.help-footer {
+  background: #e6f7ff;
+  padding: 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.help-footer p {
+  margin: 0;
+  font-size: 13px;
+  color: #2d3748;
+}
+
+.full-width {
+  width: 100%;
 }

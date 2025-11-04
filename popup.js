@@ -16,6 +16,10 @@ function setupEventListeners() {
   document.getElementById('closeDuplicatesBtn').addEventListener('click', closeDuplicateTabs);
   document.getElementById('saveAllBtn').addEventListener('click', saveAllTabs);
   document.getElementById('toggleGroupView').addEventListener('click', toggleGroupView);
+  document.getElementById('helpBtn').addEventListener('click', showHelpDialog);
+  document.getElementById('settingsBtn').addEventListener('click', () => {
+    showNotification('Settings coming in Phase 2!', 'info');
+  });
 
   // Tab navigation
   document.querySelectorAll('.tab-button').forEach(button => {
@@ -342,7 +346,12 @@ function renderSavedGroups(groups) {
     const groupItem = document.createElement('div');
     groupItem.className = 'group-item';
 
-    const date = new Date(group.timestamp).toLocaleDateString();
+    // Format date as YYYY/MM/DD
+    const dateObj = new Date(group.timestamp);
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const date = `${year}/${month}/${day}`;
 
     groupItem.innerHTML = `
       <div class="group-header">
@@ -427,6 +436,61 @@ function showNotification(message, type = 'success') {
   setTimeout(() => {
     toast.classList.remove('show');
   }, 3000);
+}
+
+// Show help dialog
+function showHelpDialog() {
+  const dialog = document.createElement('div');
+  dialog.className = 'custom-dialog help-dialog';
+  dialog.innerHTML = `
+    <div class="dialog-overlay"></div>
+    <div class="dialog-content help-content">
+      <h3>✨ TabTidy Features</h3>
+
+      <div class="help-section">
+        <h4>📋 Current Tabs</h4>
+        <ul>
+          <li><strong>Search:</strong> Quickly find tabs by title or URL</li>
+          <li><strong>Click tab:</strong> Switch to that tab</li>
+          <li><strong>❌ button:</strong> Close individual tab</li>
+          <li><strong>List/Grouped View:</strong> Toggle between flat and domain-grouped view</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <h4>💾 Saved Groups</h4>
+        <ul>
+          <li><strong>Save All:</strong> Save all current tabs as a named group</li>
+          <li><strong>Restore:</strong> Click ↩️ to bring back saved tabs</li>
+          <li><strong>Delete:</strong> Click 🗑️ to remove a group</li>
+          <li><strong>Choose:</strong> Keep tabs open or close them after saving</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <h4>🧹 Quick Actions</h4>
+        <ul>
+          <li><strong>Close Duplicates:</strong> Remove tabs with same URL</li>
+          <li><strong>Tab Count:</strong> See number badges on each tab</li>
+        </ul>
+      </div>
+
+      <div class="help-footer">
+        <p>💡 <strong>Tip:</strong> TabTidy stores all data locally - your tabs never leave your device!</p>
+      </div>
+
+      <button class="dialog-btn primary full-width" id="closeHelpBtn">
+        Got it!
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  // Close dialog
+  const closeDialog = () => document.body.removeChild(dialog);
+  document.getElementById('closeHelpBtn').addEventListener('click', closeDialog);
+  dialog.querySelector('.dialog-overlay').addEventListener('click', closeDialog);
 }
 
 // Utility: Escape HTML
