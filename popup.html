@@ -56,10 +56,19 @@
       <!-- Current Tabs Panel -->
       <div class="tab-panel active" id="currentTabsPanel">
         <div class="panel-header">
+          <button id="toggleTabSelectMode" class="toggle-view-btn" title="Select multiple tabs">
+            <span class="toggle-icon">☑️</span>
+            <span class="toggle-text">Select</span>
+          </button>
           <button id="toggleGroupView" class="toggle-view-btn" title="Toggle grouped view">
             <span class="toggle-icon">📋</span>
             <span class="toggle-text">List View</span>
           </button>
+        </div>
+        <div id="tabBulkActions" class="bulk-actions" style="display: none;">
+          <span id="selectedTabCount" class="selected-count">0 selected</span>
+          <button id="saveSelectedTabsBtn" class="action-btn primary">💾 Save Selected</button>
+          <button id="closeSelectedTabsBtn" class="action-btn">Close Selected</button>
         </div>
         <div id="tabList" class="tab-list"></div>
       </div>

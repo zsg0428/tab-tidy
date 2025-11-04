@@ -237,10 +237,30 @@ body {
   border-bottom: 1px solid #f0f0f0;
   cursor: pointer;
   transition: background 0.2s;
+  position: relative;
 }
 
 .tab-item:hover {
   background: #f7fafc;
+}
+
+.tab-item.selected {
+  background: #e6f7ff;
+  border-left: 3px solid #4fc3f7;
+  padding-left: 13px; /* Compensate for border */
+}
+
+.tab-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+  cursor: pointer;
+  display: none;
+  flex-shrink: 0;
+}
+
+.tab-item.select-mode .tab-checkbox {
+  display: block;
 }
 
 .tab-item img {

@@ -4,6 +4,8 @@ let filteredTabs = [];
 let groupByDomain = false;
 let selectMode = false;
 let selectedGroups = new Set();
+let tabSelectMode = false;
+let selectedTabs = new Set();
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -32,6 +34,11 @@ function setupEventListeners() {
   document.getElementById('toggleSelectMode').addEventListener('click', toggleSelectMode);
   document.getElementById('restoreSelectedBtn').addEventListener('click', restoreSelectedGroups);
   document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelectedGroups);
+
+  // Bulk actions for current tabs
+  document.getElementById('toggleTabSelectMode').addEventListener('click', toggleTabSelectMode);
+  document.getElementById('saveSelectedTabsBtn').addEventListener('click', saveSelectedTabs);
+  document.getElementById('closeSelectedTabsBtn').addEventListener('click', closeSelectedTabs);
 }
 
 // Switch between tabs
@@ -140,6 +147,23 @@ function renderGroupedTabs(container) {
 function createTabItem(tab) {
   const item = document.createElement('div');
   item.className = 'tab-item';
+  item.dataset.tabId = tab.id;
+
+  // Add select mode class if active
+  if (tabSelectMode) {
+    item.classList.add('select-mode');
+  }
+
+  // Check if selected
+  if (selectedTabs.has(tab.id)) {
+    item.classList.add('selected');
+  }
+
+  // Create checkbox
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'tab-checkbox';
+  checkbox.checked = selectedTabs.has(tab.id);
 
   // Create favicon image
   const img = document.createElement('img');
@@ -165,21 +189,34 @@ function createTabItem(tab) {
   closeBtn.title = 'Close tab';
   closeBtn.textContent = '❌';
 
+  item.appendChild(checkbox);
   item.appendChild(img);
   item.appendChild(title);
   item.appendChild(closeBtn);
 
-  // Click to switch to tab
-  title.addEventListener('click', async () => {
-    await chrome.tabs.update(tab.id, { active: true });
-    window.close();
+  // Click item to toggle selection in select mode or switch tab
+  item.addEventListener('click', async (e) => {
+    if (tabSelectMode) {
+      // Don't toggle if clicking close button
+      if (!e.target.closest('.close-btn')) {
+        toggleTabSelection(tab.id);
+      }
+    } else {
+      // Normal mode - switch to tab (only if clicking title or image)
+      if (e.target === title || e.target === img) {
+        await chrome.tabs.update(tab.id, { active: true });
+        window.close();
+      }
+    }
   });
 
-  // Click to close tab
+  // Click to close tab (only in non-select mode)
   closeBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    await chrome.tabs.remove(tab.id);
-    await loadTabs();
+    if (!tabSelectMode) {
+      await chrome.tabs.remove(tab.id);
+      await loadTabs();
+    }
   });
 
   return item;
@@ -427,17 +464,19 @@ function renderSavedGroups(groups) {
       </div>
     `;
 
-    // Checkbox toggle
+    // Checkbox toggle - don't stop propagation so click bubbles up
     const checkbox = groupItem.querySelector('.group-checkbox');
-    checkbox.addEventListener('change', (e) => {
-      e.stopPropagation();
-      toggleGroupSelection(group.id);
+    checkbox.addEventListener('click', (e) => {
+      // Let it bubble to groupItem click handler
     });
 
     // Click group item to toggle selection in select mode
-    groupItem.addEventListener('click', () => {
+    groupItem.addEventListener('click', (e) => {
       if (selectMode) {
-        toggleGroupSelection(group.id);
+        // Don't toggle if clicking on action buttons
+        if (!e.target.closest('.group-actions')) {
+          toggleGroupSelection(group.id);
+        }
       }
     });
 
@@ -690,4 +729,133 @@ async function deleteSelectedGroups() {
   selectedGroups.clear();
   toggleSelectMode();
   await loadSavedGroups();
+}
+
+// ===== Current Tabs Batch Operations =====
+
+// Toggle tab select mode
+function toggleTabSelectMode() {
+  tabSelectMode = !tabSelectMode;
+
+  const btn = document.getElementById('toggleTabSelectMode');
+  const icon = btn.querySelector('.toggle-icon');
+  const text = btn.querySelector('.toggle-text');
+  const bulkActions = document.getElementById('tabBulkActions');
+
+  if (tabSelectMode) {
+    icon.textContent = '✖️';
+    text.textContent = 'Cancel';
+    btn.classList.add('grouped');
+    btn.title = 'Exit selection mode';
+    bulkActions.style.display = 'flex';
+  } else {
+    icon.textContent = '☑️';
+    text.textContent = 'Select';
+    btn.classList.remove('grouped');
+    btn.title = 'Select multiple tabs';
+    bulkActions.style.display = 'none';
+    // Clear selections when exiting
+    selectedTabs.clear();
+  }
+
+  // Re-render tabs to show/hide checkboxes
+  renderTabs();
+}
+
+// Toggle tab selection
+function toggleTabSelection(tabId) {
+  if (selectedTabs.has(tabId)) {
+    selectedTabs.delete(tabId);
+  } else {
+    selectedTabs.add(tabId);
+  }
+
+  // Update UI
+  updateSelectedTabCount();
+
+  const tabItem = document.querySelector(`[data-tab-id="${tabId}"]`);
+  if (tabItem) {
+    const checkbox = tabItem.querySelector('.tab-checkbox');
+    if (selectedTabs.has(tabId)) {
+      tabItem.classList.add('selected');
+      checkbox.checked = true;
+    } else {
+      tabItem.classList.remove('selected');
+      checkbox.checked = false;
+    }
+  }
+}
+
+// Update selected tab count display
+function updateSelectedTabCount() {
+  const count = selectedTabs.size;
+  document.getElementById('selectedTabCount').textContent = `${count} selected`;
+}
+
+// Save selected tabs
+async function saveSelectedTabs() {
+  if (selectedTabs.size === 0) {
+    showNotification('No tabs selected', 'info');
+    return;
+  }
+
+  const groupName = prompt('Enter a name for this tab group:');
+  if (!groupName) return;
+
+  const tabsToSave = allTabs.filter(tab => selectedTabs.has(tab.id));
+
+  const tabGroup = {
+    id: Date.now().toString(),
+    name: groupName,
+    timestamp: Date.now(),
+    tabs: tabsToSave.map(tab => ({
+      title: tab.title,
+      url: tab.url,
+      favIconUrl: tab.favIconUrl
+    }))
+  };
+
+  // Save to storage
+  const result = await chrome.storage.local.get('savedGroups');
+  const savedGroups = result.savedGroups || [];
+  savedGroups.unshift(tabGroup);
+
+  await chrome.storage.local.set({ savedGroups });
+
+  showNotification(`Saved ${selectedTabs.size} tab${selectedTabs.size !== 1 ? 's' : ''}`, 'success');
+
+  // Clear selections and exit select mode
+  selectedTabs.clear();
+  toggleTabSelectMode();
+  await loadSavedGroups();
+}
+
+// Close selected tabs
+async function closeSelectedTabs() {
+  if (selectedTabs.size === 0) {
+    showNotification('No tabs selected', 'info');
+    return;
+  }
+
+  const tabIdsToClose = Array.from(selectedTabs);
+
+  // Check if we're closing all tabs
+  const currentTabs = await chrome.tabs.query({ currentWindow: true });
+  const currentNonPinnedTabs = currentTabs.filter(tab => !tab.pinned);
+
+  if (tabIdsToClose.length >= currentNonPinnedTabs.length) {
+    // Create new tab first to prevent window from closing
+    await chrome.tabs.create({ url: 'chrome://newtab', active: false });
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+
+  // Close the tabs
+  await chrome.tabs.remove(tabIdsToClose);
+
+  showNotification(`Closed ${tabIdsToClose.length} tab${tabIdsToClose.length !== 1 ? 's' : ''}`, 'info');
+
+  // Clear selections and exit select mode
+  selectedTabs.clear();
+  toggleTabSelectMode();
+  await loadTabs();
 }
