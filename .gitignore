@@ -1,0 +1,36 @@
+# Development files
+.DS_Store
+*.log
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+
+# Build files
+dist/
+build/
+*.zip
+
+# Dependencies
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# Icon source files (keep PNGs only)
+icons/*.svg
+icons/create_icons.py
+icons/create_better_icons.py
+
+# Temporary files
+tmp/
+temp/
+
+# Other
+claude-implementation-plans/

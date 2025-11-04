@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TabTidy</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🧹 TabTidy</h1>
+      <div class="header-actions">
+        <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
+      </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="search-container">
+      <input type="text" id="searchInput" placeholder="Search tabs..." />
+      <button id="searchBtn" class="icon-btn">🔍</button>
+    </div>
+
+    <!-- Tab Stats -->
+    <div class="stats">
+      <span id="tabCount">0 tabs</span>
+      <span id="groupCount">0 groups</span>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <button id="closeDuplicatesBtn" class="action-btn">Close Duplicates</button>
+      <button id="saveAllBtn" class="action-btn primary">💾 Save All</button>
+    </div>
+
+    <!-- Current Tabs Section -->
+    <div class="section">
+      <div class="section-header">
+        <h3>Current Tabs</h3>
+        <button id="toggleGroupView" class="icon-btn">📂</button>
+      </div>
+      <div id="tabList" class="tab-list"></div>
+    </div>
+
+    <!-- Saved Groups Section -->
+    <div class="section">
+      <div class="section-header">
+        <h3>💾 Saved Groups</h3>
+      </div>
+      <div id="savedGroups" class="saved-groups"></div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
