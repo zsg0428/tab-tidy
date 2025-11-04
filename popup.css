@@ -315,6 +315,23 @@ body {
   border-bottom: 1px solid #4fc3f7;
 }
 
+.select-all-btn {
+  padding: 6px 12px;
+  border: 1px solid #4fc3f7;
+  border-radius: 4px;
+  background: white;
+  color: #4fc3f7;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.select-all-btn:hover {
+  background: #4fc3f7;
+  color: white;
+}
+
 .selected-count {
   flex: 1;
   font-size: 13px;
@@ -375,18 +392,26 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.group-info-wrapper {
+  flex: 1;
+  min-width: 0;
 }
 
 .group-name {
   font-size: 14px;
   font-weight: 600;
   color: #2d3748;
+  margin-bottom: 4px;
 }
 
 .group-actions {
   display: flex;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .group-info {
@@ -396,6 +421,50 @@ body {
 
 .group-date {
   margin-right: 12px;
+}
+
+/* Group tabs preview */
+.group-tabs-preview {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #e2e8f0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tab-preview-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  transition: background 0.2s;
+}
+
+.tab-preview-item:hover {
+  background: #f7fafc;
+}
+
+.tab-preview-favicon {
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.tab-preview-title {
+  font-size: 12px;
+  color: #4a5568;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expand-btn {
+  font-size: 12px;
+  transition: transform 0.2s;
 }
 
 /* Empty State */

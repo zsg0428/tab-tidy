@@ -32,11 +32,13 @@ function setupEventListeners() {
 
   // Bulk actions for saved groups
   document.getElementById('toggleSelectMode').addEventListener('click', toggleSelectMode);
+  document.getElementById('selectAllGroupsBtn').addEventListener('click', selectAllGroups);
   document.getElementById('restoreSelectedBtn').addEventListener('click', restoreSelectedGroups);
   document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelectedGroups);
 
   // Bulk actions for current tabs
   document.getElementById('toggleTabSelectMode').addEventListener('click', toggleTabSelectMode);
+  document.getElementById('selectAllTabsBtn').addEventListener('click', selectAllTabs);
   document.getElementById('saveSelectedTabsBtn').addEventListener('click', saveSelectedTabs);
   document.getElementById('closeSelectedTabsBtn').addEventListener('click', closeSelectedTabs);
 }
@@ -290,6 +292,23 @@ async function saveAllTabs() {
 
   if (!groupName) return;
 
+  // Check for duplicate name
+  const result = await chrome.storage.local.get('savedGroups');
+  const savedGroups = result.savedGroups || [];
+  const existingGroup = savedGroups.find(g => g.name.toLowerCase() === groupName.toLowerCase());
+
+  if (existingGroup) {
+    const overwrite = confirm(`A group named "${groupName}" already exists. Do you want to overwrite it?`);
+    if (!overwrite) {
+      // Ask for new name
+      saveAllTabs();
+      return;
+    }
+    // Remove existing group
+    const filteredGroups = savedGroups.filter(g => g.id !== existingGroup.id);
+    await chrome.storage.local.set({ savedGroups: filteredGroups });
+  }
+
   const tabGroup = {
     id: Date.now().toString(),
     name: groupName,
@@ -302,11 +321,11 @@ async function saveAllTabs() {
   };
 
   // Save to storage
-  const result = await chrome.storage.local.get('savedGroups');
-  const savedGroups = result.savedGroups || [];
-  savedGroups.unshift(tabGroup);
+  const updatedGroups = await chrome.storage.local.get('savedGroups');
+  const groups = updatedGroups.savedGroups || [];
+  groups.unshift(tabGroup);
 
-  await chrome.storage.local.set({ savedGroups });
+  await chrome.storage.local.set({ savedGroups: groups });
 
   // Show custom dialog for closing tabs
   showCloseTabsDialog(tabGroup.tabs);
@@ -452,17 +471,50 @@ function renderSavedGroups(groups) {
     groupItem.innerHTML = `
       <input type="checkbox" class="group-checkbox" ${selectedGroups.has(group.id) ? 'checked' : ''}>
       <div class="group-header">
-        <div class="group-name">${escapeHtml(group.name)}</div>
+        <div class="group-info-wrapper">
+          <div class="group-name">${escapeHtml(group.name)}</div>
+          <div class="group-info">
+            <span class="group-date">${date}</span>
+            <span>${group.tabs.length} tabs</span>
+          </div>
+        </div>
         <div class="group-actions">
+          <button class="icon-btn expand-btn" title="Show tabs">▼</button>
           <button class="icon-btn restore-btn" title="Restore tabs">↩️</button>
           <button class="icon-btn delete-btn" title="Delete group">🗑️</button>
         </div>
       </div>
-      <div class="group-info">
-        <span class="group-date">${date}</span>
-        <span>${group.tabs.length} tabs</span>
-      </div>
+      <div class="group-tabs-preview" style="display: none;"></div>
     `;
+
+    // Create tabs preview list
+    const tabsPreview = groupItem.querySelector('.group-tabs-preview');
+    group.tabs.forEach(tab => {
+      const tabPreviewItem = document.createElement('div');
+      tabPreviewItem.className = 'tab-preview-item';
+
+      const favicon = document.createElement('img');
+      favicon.width = 14;
+      favicon.height = 14;
+      favicon.className = 'tab-preview-favicon';
+      if (tab.favIconUrl && tab.favIconUrl.startsWith('http')) {
+        favicon.src = tab.favIconUrl;
+        favicon.onerror = () => {
+          favicon.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"%3E%3Ctext y="14" font-size="14"%3E📄%3C/text%3E%3C/svg%3E';
+        };
+      } else {
+        favicon.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"%3E%3Ctext y="14" font-size="14"%3E📄%3C/text%3E%3C/svg%3E';
+      }
+
+      const tabTitle = document.createElement('span');
+      tabTitle.className = 'tab-preview-title';
+      tabTitle.textContent = tab.title;
+      tabTitle.title = tab.url;
+
+      tabPreviewItem.appendChild(favicon);
+      tabPreviewItem.appendChild(tabTitle);
+      tabsPreview.appendChild(tabPreviewItem);
+    });
 
     // Checkbox toggle - don't stop propagation so click bubbles up
     const checkbox = groupItem.querySelector('.group-checkbox');
@@ -470,12 +522,31 @@ function renderSavedGroups(groups) {
       // Let it bubble to groupItem click handler
     });
 
-    // Click group item to toggle selection in select mode
-    groupItem.addEventListener('click', (e) => {
+    // Expand/collapse tabs preview
+    const expandBtn = groupItem.querySelector('.expand-btn');
+    expandBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isExpanded = tabsPreview.style.display === 'block';
+      tabsPreview.style.display = isExpanded ? 'none' : 'block';
+      expandBtn.textContent = isExpanded ? '▼' : '▲';
+      expandBtn.title = isExpanded ? 'Show tabs' : 'Hide tabs';
+    });
+
+    // Click group header to expand/collapse
+    const groupHeader = groupItem.querySelector('.group-header');
+    groupHeader.addEventListener('click', (e) => {
       if (selectMode) {
-        // Don't toggle if clicking on action buttons
+        // In select mode, toggle selection (except when clicking action buttons)
         if (!e.target.closest('.group-actions')) {
           toggleGroupSelection(group.id);
+        }
+      } else {
+        // In normal mode, toggle expand/collapse (except when clicking action buttons)
+        if (!e.target.closest('.group-actions')) {
+          const isExpanded = tabsPreview.style.display === 'block';
+          tabsPreview.style.display = isExpanded ? 'none' : 'block';
+          expandBtn.textContent = isExpanded ? '▼' : '▲';
+          expandBtn.title = isExpanded ? 'Show tabs' : 'Hide tabs';
         }
       }
     });
@@ -625,6 +696,7 @@ function toggleSelectMode() {
   const icon = btn.querySelector('.toggle-icon');
   const text = btn.querySelector('.toggle-text');
   const bulkActions = document.getElementById('bulkActions');
+  const selectAllBtn = document.getElementById('selectAllGroupsBtn');
 
   if (selectMode) {
     icon.textContent = '✖️';
@@ -640,6 +712,7 @@ function toggleSelectMode() {
     bulkActions.style.display = 'none';
     // Clear selections when exiting
     selectedGroups.clear();
+    selectAllBtn.textContent = 'Select All';
   }
 
   // Re-render groups to show/hide checkboxes
@@ -675,6 +748,28 @@ function updateSelectedCount() {
   const count = selectedGroups.size;
   document.getElementById('selectedCount').textContent =
     `${count} selected`;
+}
+
+// Select all groups
+async function selectAllGroups() {
+  const result = await chrome.storage.local.get('savedGroups');
+  const savedGroups = result.savedGroups || [];
+
+  // If all are already selected, deselect all
+  if (selectedGroups.size === savedGroups.length) {
+    selectedGroups.clear();
+    document.getElementById('selectAllGroupsBtn').textContent = 'Select All';
+  } else {
+    // Select all
+    savedGroups.forEach(group => selectedGroups.add(group.id));
+    document.getElementById('selectAllGroupsBtn').textContent = 'Deselect All';
+  }
+
+  // Update count
+  updateSelectedCount();
+
+  // Re-render to update UI
+  await loadSavedGroups();
 }
 
 // Restore selected groups
@@ -741,6 +836,7 @@ function toggleTabSelectMode() {
   const icon = btn.querySelector('.toggle-icon');
   const text = btn.querySelector('.toggle-text');
   const bulkActions = document.getElementById('tabBulkActions');
+  const selectAllBtn = document.getElementById('selectAllTabsBtn');
 
   if (tabSelectMode) {
     icon.textContent = '✖️';
@@ -756,6 +852,7 @@ function toggleTabSelectMode() {
     bulkActions.style.display = 'none';
     // Clear selections when exiting
     selectedTabs.clear();
+    selectAllBtn.textContent = 'Select All';
   }
 
   // Re-render tabs to show/hide checkboxes
@@ -792,6 +889,25 @@ function updateSelectedTabCount() {
   document.getElementById('selectedTabCount').textContent = `${count} selected`;
 }
 
+// Select all tabs
+function selectAllTabs() {
+  // If all are already selected, deselect all
+  if (selectedTabs.size === filteredTabs.length) {
+    selectedTabs.clear();
+    document.getElementById('selectAllTabsBtn').textContent = 'Select All';
+  } else {
+    // Select all
+    filteredTabs.forEach(tab => selectedTabs.add(tab.id));
+    document.getElementById('selectAllTabsBtn').textContent = 'Deselect All';
+  }
+
+  // Update count
+  updateSelectedTabCount();
+
+  // Re-render to update UI
+  renderTabs();
+}
+
 // Save selected tabs
 async function saveSelectedTabs() {
   if (selectedTabs.size === 0) {
@@ -801,6 +917,23 @@ async function saveSelectedTabs() {
 
   const groupName = prompt('Enter a name for this tab group:');
   if (!groupName) return;
+
+  // Check for duplicate name
+  const result = await chrome.storage.local.get('savedGroups');
+  const savedGroups = result.savedGroups || [];
+  const existingGroup = savedGroups.find(g => g.name.toLowerCase() === groupName.toLowerCase());
+
+  if (existingGroup) {
+    const overwrite = confirm(`A group named "${groupName}" already exists. Do you want to overwrite it?`);
+    if (!overwrite) {
+      // Ask for new name
+      await saveSelectedTabs();
+      return;
+    }
+    // Remove existing group
+    const filteredGroups = savedGroups.filter(g => g.id !== existingGroup.id);
+    await chrome.storage.local.set({ savedGroups: filteredGroups });
+  }
 
   const tabsToSave = allTabs.filter(tab => selectedTabs.has(tab.id));
 
@@ -816,11 +949,11 @@ async function saveSelectedTabs() {
   };
 
   // Save to storage
-  const result = await chrome.storage.local.get('savedGroups');
-  const savedGroups = result.savedGroups || [];
-  savedGroups.unshift(tabGroup);
+  const updatedResult = await chrome.storage.local.get('savedGroups');
+  const groups = updatedResult.savedGroups || [];
+  groups.unshift(tabGroup);
 
-  await chrome.storage.local.set({ savedGroups });
+  await chrome.storage.local.set({ savedGroups: groups });
 
   showNotification(`Saved ${selectedTabs.size} tab${selectedTabs.size !== 1 ? 's' : ''}`, 'success');
 
