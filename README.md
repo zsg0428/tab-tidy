@@ -31,8 +31,8 @@ Will be available on Chrome Web Store
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/tabtidy.git
-cd tabtidy
+git clone https://github.com/zsg0428/tab-tidy.git
+cd tab-tidy
 
 # Load in Chrome
 1. Open chrome://extensions/
@@ -80,7 +80,7 @@ tabtidy/
 - [ ] Export to Markdown/JSON
 - [ ] Statistics dashboard
 
-See the [full implementation plan](https://github.com/YOUR_USERNAME/tabtidy/issues) for details.
+See the [full implementation plan](https://github.com/zsg0428/tab-tidy/issues) for details.
 
 ## 🛠️ Technologies
 
@@ -112,6 +112,6 @@ Built with simplicity and performance in mind. No bloat, just the features you n
 <div align="center">
   Made with ❤️ by the TabTidy team
 
-  [Report Bug](https://github.com/YOUR_USERNAME/tabtidy/issues) ·
-  [Request Feature](https://github.com/YOUR_USERNAME/tabtidy/issues)
+  [Report Bug](https://github.com/zsg0428/tab-tidy/issues) ·
+  [Request Feature](https://github.com/zsg0428/tab-tidy/issues)
 </div>
