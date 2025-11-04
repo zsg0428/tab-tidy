@@ -501,7 +501,7 @@ function renderSavedGroups(groups) {
 
     // Create tabs preview list
     const tabsPreview = groupItem.querySelector('.group-tabs-preview');
-    group.tabs.forEach(tab => {
+    group.tabs.forEach((tab, index) => {
       const tabPreviewItem = document.createElement('div');
       tabPreviewItem.className = 'tab-preview-item';
 
@@ -523,8 +523,67 @@ function renderSavedGroups(groups) {
       tabTitle.textContent = tab.title;
       tabTitle.title = tab.url;
 
+      // Add delete button
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'tab-preview-delete-btn';
+      deleteBtn.textContent = '×';
+      deleteBtn.title = 'Remove from group';
+
       tabPreviewItem.appendChild(favicon);
       tabPreviewItem.appendChild(tabTitle);
+      tabPreviewItem.appendChild(deleteBtn);
+
+      // Add click handler to restore individual tab
+      tabPreviewItem.addEventListener('click', async (e) => {
+        // Don't trigger if clicking delete button
+        if (e.target === deleteBtn) return;
+
+        e.stopPropagation();
+        try {
+          // Create and switch to the tab
+          const newTab = await chrome.tabs.create({ url: tab.url, active: true });
+          showNotification(`Opened: ${tab.title}`, 'success');
+          // Close popup after opening tab
+          window.close();
+        } catch (error) {
+          showNotification('Error opening tab', 'error');
+          console.error('Error opening tab:', error);
+        }
+      });
+
+      // Delete button handler
+      deleteBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        try {
+          // Remove this tab from the group
+          const result = await chrome.storage.local.get('savedGroups');
+          const savedGroups = result.savedGroups || [];
+          const groupToUpdate = savedGroups.find(g => g.id === group.id);
+
+          if (groupToUpdate) {
+            // Remove the tab at this index
+            groupToUpdate.tabs.splice(index, 1);
+
+            // If no tabs left, delete the entire group
+            if (groupToUpdate.tabs.length === 0) {
+              const filtered = savedGroups.filter(g => g.id !== group.id);
+              await chrome.storage.local.set({ savedGroups: filtered });
+              showNotification('Group deleted (no tabs remaining)', 'info');
+            } else {
+              // Update the group
+              await chrome.storage.local.set({ savedGroups: savedGroups });
+              showNotification('Tab removed from group', 'success');
+            }
+
+            // Reload the saved groups
+            await loadSavedGroups();
+          }
+        } catch (error) {
+          showNotification('Error removing tab', 'error');
+          console.error('Error removing tab:', error);
+        }
+      });
+
       tabsPreview.appendChild(tabPreviewItem);
     });
 

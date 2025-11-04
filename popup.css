@@ -435,16 +435,49 @@ body {
 .tab-preview-item {
   display: flex;
   align-items: center;
+  gap: 8px;
   padding: 6px 8px;
   margin-bottom: 4px;
   background: white;
   border-radius: 4px;
   border: 1px solid #e2e8f0;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  cursor: pointer;
+  position: relative;
 }
 
 .tab-preview-item:hover {
-  background: #f7fafc;
+  background: #e6f7ff;
+  border-color: #4fc3f7;
+  transform: translateX(2px);
+}
+
+.tab-preview-delete-btn {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: #a0aec0;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  opacity: 0;
+}
+
+.tab-preview-item:hover .tab-preview-delete-btn {
+  opacity: 1;
+}
+
+.tab-preview-delete-btn:hover {
+  background: #fed7d7;
+  color: #e53e3e;
 }
 
 .tab-preview-favicon {
