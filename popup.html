@@ -66,6 +66,17 @@
 
       <!-- Saved Groups Panel -->
       <div class="tab-panel" id="savedGroupsPanel">
+        <div class="panel-header">
+          <button id="toggleSelectMode" class="toggle-view-btn" title="Select multiple groups">
+            <span class="toggle-icon">☑️</span>
+            <span class="toggle-text">Select</span>
+          </button>
+        </div>
+        <div id="bulkActions" class="bulk-actions" style="display: none;">
+          <span id="selectedCount" class="selected-count">0 selected</span>
+          <button id="restoreSelectedBtn" class="action-btn">Restore Selected</button>
+          <button id="deleteSelectedBtn" class="action-btn">Delete Selected</button>
+        </div>
         <div id="savedGroups" class="saved-groups"></div>
       </div>
     </div>

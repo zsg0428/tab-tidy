@@ -285,6 +285,23 @@ body {
   color: #c53030;
 }
 
+/* Bulk Actions */
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #e6f7ff;
+  border-bottom: 1px solid #4fc3f7;
+}
+
+.selected-count {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4fc3f7;
+}
+
 /* Saved Groups */
 .saved-groups {
   flex: 1;
@@ -301,11 +318,37 @@ body {
   margin-bottom: 8px;
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
 }
 
 .group-item:hover {
   background: #edf2f7;
   border-color: #cbd5e0;
+}
+
+.group-item.selected {
+  background: #e6f7ff;
+  border-color: #4fc3f7;
+  border-width: 2px;
+  padding: 11px; /* Compensate for thicker border */
+}
+
+.group-checkbox {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  display: none;
+}
+
+.group-item.select-mode {
+  padding-left: 40px;
+}
+
+.group-item.select-mode .group-checkbox {
+  display: block;
 }
 
 .group-header {

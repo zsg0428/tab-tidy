@@ -2,6 +2,8 @@
 let allTabs = [];
 let filteredTabs = [];
 let groupByDomain = false;
+let selectMode = false;
+let selectedGroups = new Set();
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -25,6 +27,11 @@ function setupEventListeners() {
   document.querySelectorAll('.tab-button').forEach(button => {
     button.addEventListener('click', () => switchTab(button.dataset.tab));
   });
+
+  // Bulk actions for saved groups
+  document.getElementById('toggleSelectMode').addEventListener('click', toggleSelectMode);
+  document.getElementById('restoreSelectedBtn').addEventListener('click', restoreSelectedGroups);
+  document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelectedGroups);
 }
 
 // Switch between tabs
@@ -386,6 +393,17 @@ function renderSavedGroups(groups) {
   groups.forEach(group => {
     const groupItem = document.createElement('div');
     groupItem.className = 'group-item';
+    groupItem.dataset.groupId = group.id;
+
+    // Add select mode class if active
+    if (selectMode) {
+      groupItem.classList.add('select-mode');
+    }
+
+    // Check if selected
+    if (selectedGroups.has(group.id)) {
+      groupItem.classList.add('selected');
+    }
 
     // Format date as YYYY/MM/DD
     const dateObj = new Date(group.timestamp);
@@ -395,6 +413,7 @@ function renderSavedGroups(groups) {
     const date = `${year}/${month}/${day}`;
 
     groupItem.innerHTML = `
+      <input type="checkbox" class="group-checkbox" ${selectedGroups.has(group.id) ? 'checked' : ''}>
       <div class="group-header">
         <div class="group-name">${escapeHtml(group.name)}</div>
         <div class="group-actions">
@@ -408,16 +427,34 @@ function renderSavedGroups(groups) {
       </div>
     `;
 
-    // Restore group
-    groupItem.querySelector('.restore-btn').addEventListener('click', async (e) => {
+    // Checkbox toggle
+    const checkbox = groupItem.querySelector('.group-checkbox');
+    checkbox.addEventListener('change', (e) => {
       e.stopPropagation();
-      await restoreGroup(group);
+      toggleGroupSelection(group.id);
     });
 
-    // Delete group
+    // Click group item to toggle selection in select mode
+    groupItem.addEventListener('click', () => {
+      if (selectMode) {
+        toggleGroupSelection(group.id);
+      }
+    });
+
+    // Restore group (only in non-select mode)
+    groupItem.querySelector('.restore-btn').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!selectMode) {
+        await restoreGroup(group);
+      }
+    });
+
+    // Delete group (only in non-select mode)
     groupItem.querySelector('.delete-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
-      await deleteGroup(group.id);
+      if (!selectMode) {
+        await deleteGroup(group.id);
+      }
     });
 
     container.appendChild(groupItem);
@@ -539,4 +576,118 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Toggle select mode for saved groups
+function toggleSelectMode() {
+  selectMode = !selectMode;
+
+  const btn = document.getElementById('toggleSelectMode');
+  const icon = btn.querySelector('.toggle-icon');
+  const text = btn.querySelector('.toggle-text');
+  const bulkActions = document.getElementById('bulkActions');
+
+  if (selectMode) {
+    icon.textContent = '✖️';
+    text.textContent = 'Cancel';
+    btn.classList.add('grouped');
+    btn.title = 'Exit selection mode';
+    bulkActions.style.display = 'flex';
+  } else {
+    icon.textContent = '☑️';
+    text.textContent = 'Select';
+    btn.classList.remove('grouped');
+    btn.title = 'Select multiple groups';
+    bulkActions.style.display = 'none';
+    // Clear selections when exiting
+    selectedGroups.clear();
+  }
+
+  // Re-render groups to show/hide checkboxes
+  loadSavedGroups();
+}
+
+// Toggle group selection
+function toggleGroupSelection(groupId) {
+  if (selectedGroups.has(groupId)) {
+    selectedGroups.delete(groupId);
+  } else {
+    selectedGroups.add(groupId);
+  }
+
+  // Update UI
+  updateSelectedCount();
+
+  const groupItem = document.querySelector(`[data-group-id="${groupId}"]`);
+  if (groupItem) {
+    const checkbox = groupItem.querySelector('.group-checkbox');
+    if (selectedGroups.has(groupId)) {
+      groupItem.classList.add('selected');
+      checkbox.checked = true;
+    } else {
+      groupItem.classList.remove('selected');
+      checkbox.checked = false;
+    }
+  }
+}
+
+// Update selected count display
+function updateSelectedCount() {
+  const count = selectedGroups.size;
+  document.getElementById('selectedCount').textContent =
+    `${count} selected`;
+}
+
+// Restore selected groups
+async function restoreSelectedGroups() {
+  if (selectedGroups.size === 0) {
+    showNotification('No groups selected', 'info');
+    return;
+  }
+
+  const result = await chrome.storage.local.get('savedGroups');
+  const savedGroups = result.savedGroups || [];
+
+  const groupsToRestore = savedGroups.filter(g => selectedGroups.has(g.id));
+
+  if (groupsToRestore.length === 0) return;
+
+  // Restore all selected groups
+  for (const group of groupsToRestore) {
+    for (const tab of group.tabs) {
+      await chrome.tabs.create({ url: tab.url, active: false });
+    }
+  }
+
+  showNotification(`Restored ${groupsToRestore.length} group${groupsToRestore.length !== 1 ? 's' : ''}`, 'success');
+
+  // Exit select mode
+  selectedGroups.clear();
+  toggleSelectMode();
+  window.close();
+}
+
+// Delete selected groups
+async function deleteSelectedGroups() {
+  if (selectedGroups.size === 0) {
+    showNotification('No groups selected', 'info');
+    return;
+  }
+
+  if (!confirm(`Delete ${selectedGroups.size} selected group${selectedGroups.size !== 1 ? 's' : ''}?`)) {
+    return;
+  }
+
+  const result = await chrome.storage.local.get('savedGroups');
+  const savedGroups = result.savedGroups || [];
+  const filtered = savedGroups.filter(g => !selectedGroups.has(g.id));
+
+  await chrome.storage.local.set({ savedGroups: filtered });
+
+  showNotification(`Deleted ${selectedGroups.size} group${selectedGroups.size !== 1 ? 's' : ''}`, 'info');
+
+  // Clear selections and exit select mode
+  selectedGroups.clear();
+  toggleSelectMode();
+  await loadSavedGroups();
 }
