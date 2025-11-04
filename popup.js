@@ -16,6 +16,29 @@ function setupEventListeners() {
   document.getElementById('closeDuplicatesBtn').addEventListener('click', closeDuplicateTabs);
   document.getElementById('saveAllBtn').addEventListener('click', saveAllTabs);
   document.getElementById('toggleGroupView').addEventListener('click', toggleGroupView);
+
+  // Tab navigation
+  document.querySelectorAll('.tab-button').forEach(button => {
+    button.addEventListener('click', () => switchTab(button.dataset.tab));
+  });
+}
+
+// Switch between tabs
+function switchTab(tabName) {
+  // Update buttons
+  document.querySelectorAll('.tab-button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+
+  // Update panels
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    if ((tabName === 'current' && panel.id === 'currentTabsPanel') ||
+        (tabName === 'saved' && panel.id === 'savedGroupsPanel')) {
+      panel.classList.add('active');
+    } else {
+      panel.classList.remove('active');
+    }
+  });
 }
 
 // Load all tabs
@@ -34,6 +57,9 @@ async function loadTabs() {
 function updateStats() {
   const tabCount = allTabs.length;
   document.getElementById('tabCount').textContent = `${tabCount} tab${tabCount !== 1 ? 's' : ''}`;
+
+  // Update tab count badges
+  document.getElementById('currentTabCount').textContent = tabCount;
 }
 
 // Render tabs
@@ -232,6 +258,9 @@ async function loadSavedGroups() {
   const groupCount = savedGroups.length;
   document.getElementById('groupCount').textContent = `${groupCount} saved group${groupCount !== 1 ? 's' : ''}`;
 
+  // Update saved groups count badge
+  document.getElementById('savedGroupCount').textContent = groupCount;
+
   renderSavedGroups(savedGroups);
 }
 
@@ -314,13 +343,31 @@ function toggleGroupView() {
   renderTabs();
 
   const btn = document.getElementById('toggleGroupView');
-  btn.textContent = groupByDomain ? '📋' : '📂';
+  const icon = btn.querySelector('.toggle-icon');
+  const text = btn.querySelector('.toggle-text');
+
+  if (groupByDomain) {
+    icon.textContent = '📂';
+    text.textContent = 'Grouped';
+    btn.classList.add('grouped');
+    btn.title = 'Switch to list view';
+  } else {
+    icon.textContent = '📋';
+    text.textContent = 'List View';
+    btn.classList.remove('grouped');
+    btn.title = 'Switch to grouped view';
+  }
 }
 
 // Show notification
-function showNotification(message) {
-  // Simple alert for now - can be improved with a custom notification
-  console.log(message);
+function showNotification(message, type = 'success') {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = `toast show ${type}`;
+
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, 3000);
 }
 
 // Utility: Escape HTML
