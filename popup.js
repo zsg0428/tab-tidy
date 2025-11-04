@@ -302,9 +302,22 @@ function showCloseTabsDialog(tabCount) {
 
   // Close tabs
   document.getElementById('closeTabsBtn').addEventListener('click', async () => {
-    await chrome.tabs.remove(allTabs.map(t => t.id));
+    // Get all tabs in current window
+    const allWindowTabs = await chrome.tabs.query({ currentWindow: true });
+
+    // Filter out pinned tabs (keep them)
+    const tabsToClose = allTabs.filter(tab => !tab.pinned);
+
+    // If closing all tabs would close the window, keep one or create new tab
+    if (tabsToClose.length === allWindowTabs.length) {
+      // Create a new tab first to prevent window from closing
+      await chrome.tabs.create({ url: 'chrome://newtab', active: true });
+    }
+
+    // Close the tabs
+    await chrome.tabs.remove(tabsToClose.map(t => t.id));
     document.body.removeChild(dialog);
-    showNotification('Tabs closed', 'info');
+    showNotification(`Closed ${tabsToClose.length} tabs`, 'info');
   });
 
   // Click overlay to dismiss (keep tabs)
