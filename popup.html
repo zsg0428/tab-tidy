@@ -50,6 +50,10 @@
         Saved Groups
         <span class="tab-count" id="savedGroupCount">0</span>
       </button>
+      <button class="tab-button" data-tab="history">
+        History
+        <span class="tab-count" id="historyCount">0</span>
+      </button>
     </div>
 
     <!-- Tab Panels -->
@@ -79,6 +83,7 @@
           <div class="quick-actions-left">
             <button id="groupByDomainBtn" class="action-btn secondary" title="Organize tabs into groups by domain">🎨 Organize Tabs</button>
             <button id="ungroupAllBtn" class="action-btn secondary" title="Remove tab organization">✖️ Unorganize</button>
+            <button id="undoCloseBtn" class="action-btn secondary" title="Restore last closed tab">⏮️ Undo Close</button>
           </div>
           <div class="quick-actions-right">
             <button id="closeDuplicatesBtn" class="action-btn">Close Duplicates</button>
@@ -102,6 +107,17 @@
           <button id="deleteSelectedBtn" class="action-btn">Delete Selected</button>
         </div>
         <div id="savedGroups" class="saved-groups"></div>
+      </div>
+
+      <!-- History Panel -->
+      <div class="tab-panel" id="historyPanel">
+        <div class="panel-header">
+          <button id="clearHistoryBtn" class="toggle-view-btn" title="Clear all history">
+            <span class="toggle-icon">🗑️</span>
+            <span class="toggle-text">Clear All</span>
+          </button>
+        </div>
+        <div id="historyList" class="history-list"></div>
       </div>
     </div>
   </div>

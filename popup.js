@@ -9,12 +9,14 @@ let selectedTabs = new Set();
 let expandedGroups = new Set(); // Track which groups are expanded
 let currentFilter = 'all'; // Current filter selection
 let settings = null; // User settings
+let recentlyClosedTabs = []; // Recently closed tabs (max 10)
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
   await loadSettings();
   await loadTabs();
   await loadSavedGroups();
+  await loadHistory();
   setupEventListeners();
 });
 
@@ -73,6 +75,7 @@ function setupEventListeners() {
   document.getElementById('toggleGroupView').addEventListener('click', toggleGroupView);
   document.getElementById('groupByDomainBtn').addEventListener('click', groupTabsByDomain);
   document.getElementById('ungroupAllBtn').addEventListener('click', ungroupAllTabs);
+  document.getElementById('undoCloseBtn').addEventListener('click', undoCloseTab);
   document.getElementById('helpBtn').addEventListener('click', showHelpDialog);
   document.getElementById('settingsBtn').addEventListener('click', () => {
     chrome.tabs.create({ url: 'settings.html' });
@@ -94,6 +97,9 @@ function setupEventListeners() {
   document.getElementById('selectAllTabsBtn').addEventListener('click', selectAllTabs);
   document.getElementById('saveSelectedTabsBtn').addEventListener('click', saveSelectedTabs);
   document.getElementById('closeSelectedTabsBtn').addEventListener('click', closeSelectedTabs);
+
+  // History panel
+  document.getElementById('clearHistoryBtn').addEventListener('click', clearHistory);
 }
 
 // Switch between tabs
@@ -106,7 +112,8 @@ function switchTab(tabName) {
   // Update panels
   document.querySelectorAll('.tab-panel').forEach(panel => {
     if ((tabName === 'current' && panel.id === 'currentTabsPanel') ||
-        (tabName === 'saved' && panel.id === 'savedGroupsPanel')) {
+        (tabName === 'saved' && panel.id === 'savedGroupsPanel') ||
+        (tabName === 'history' && panel.id === 'historyPanel')) {
       panel.classList.add('active');
     } else {
       panel.classList.remove('active');
@@ -896,6 +903,203 @@ async function ungroupAllTabs() {
   }
 }
 
+// Undo close tab (restore last closed tab)
+async function undoCloseTab() {
+  try {
+    console.log('Attempting to restore last closed tab...');
+
+    const sessions = await chrome.sessions.getRecentlyClosed({ maxResults: 1 });
+    console.log('Recently closed sessions:', sessions);
+
+    if (sessions.length === 0) {
+      showNotification('No recently closed tabs', 'info');
+      return;
+    }
+
+    const session = sessions[0];
+    console.log('Restoring session:', session);
+
+    if (session.tab) {
+      // Restore single tab
+      await chrome.sessions.restore(session.tab.sessionId);
+      showNotification(`Restored: ${session.tab.title}`, 'success');
+    } else if (session.window) {
+      // Restore window
+      await chrome.sessions.restore(session.window.sessionId);
+      showNotification(`Restored window with ${session.window.tabs.length} tabs`, 'success');
+    } else {
+      // Just restore the session without specific ID
+      await chrome.sessions.restore();
+      showNotification('Restored last closed tab', 'success');
+    }
+
+    await loadTabs();
+  } catch (error) {
+    console.error('Error undoing close:', error);
+    showNotification(`Error: ${error.message}`, 'error');
+  }
+}
+
+// Load recently closed tabs history
+async function loadHistory() {
+  try {
+    const historyList = document.getElementById('historyList');
+    const historyCount = document.getElementById('historyCount');
+
+    // Get recently closed sessions (max 25)
+    const sessions = await chrome.sessions.getRecentlyClosed({ maxResults: 25 });
+
+    if (sessions.length === 0) {
+      historyList.innerHTML = `
+        <div style="padding: 40px 20px; text-align: center; color: #a0aec0;">
+          <div style="font-size: 48px; margin-bottom: 16px;">📜</div>
+          <div style="font-size: 14px;">No recently closed tabs</div>
+        </div>
+      `;
+      historyCount.textContent = '0';
+      return;
+    }
+
+    // Filter only tab sessions (not windows) and render
+    const tabSessions = sessions.filter(session => session.tab);
+    historyCount.textContent = tabSessions.length.toString();
+
+    historyList.innerHTML = tabSessions.map(session => {
+      const tab = session.tab;
+      const timeAgo = getTimeAgo(tab.lastModified);
+      const favicon = tab.favIconUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="12" font-size="12">🌐</text></svg>';
+
+      return `
+        <div class="history-item" data-session-id="${session.tab.sessionId}">
+          <img src="${favicon}" class="favicon" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2212%22 font-size=%2212%22>🌐</text></svg>'" />
+          <div class="history-info">
+            <div class="history-title">${escapeHtml(tab.title)}</div>
+            <div class="history-meta">
+              <span class="history-time">${timeAgo}</span>
+              <span class="history-url">${escapeHtml(truncateUrl(tab.url))}</span>
+            </div>
+          </div>
+          <div class="history-actions">
+            <button class="icon-btn restore-history-btn" title="Restore this tab">
+              ↩️
+            </button>
+            <button class="icon-btn remove-history-btn" title="Remove from history">
+              ✕
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Add click handlers for restore
+    historyList.querySelectorAll('.history-item').forEach(item => {
+      const sessionId = item.dataset.sessionId;
+
+      // Click on item to restore
+      item.addEventListener('click', async (e) => {
+        if (e.target.closest('.remove-history-btn')) return;
+        await restoreHistoryItem(sessionId);
+      });
+
+      // Remove button
+      const removeBtn = item.querySelector('.remove-history-btn');
+      removeBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        item.remove();
+        // Update count
+        const remaining = historyList.querySelectorAll('.history-item').length;
+        historyCount.textContent = remaining.toString();
+
+        if (remaining === 0) {
+          historyList.innerHTML = `
+            <div style="padding: 40px 20px; text-align: center; color: #a0aec0;">
+              <div style="font-size: 48px; margin-bottom: 16px;">📜</div>
+              <div style="font-size: 14px;">No recently closed tabs</div>
+            </div>
+          `;
+        }
+      });
+    });
+
+  } catch (error) {
+    console.error('Error loading history:', error);
+    const historyList = document.getElementById('historyList');
+    historyList.innerHTML = `
+      <div style="padding: 40px 20px; text-align: center; color: #e53e3e;">
+        <div style="font-size: 14px;">Error loading history</div>
+      </div>
+    `;
+  }
+}
+
+// Restore a specific history item
+async function restoreHistoryItem(sessionId) {
+  try {
+    await chrome.sessions.restore(sessionId);
+    showNotification('Tab restored', 'success');
+
+    // Reload history to remove restored item
+    await loadHistory();
+    await loadTabs();
+  } catch (error) {
+    console.error('Error restoring history item:', error);
+    showNotification('Error restoring tab', 'error');
+  }
+}
+
+// Clear all history
+async function clearHistory() {
+  const historyList = document.getElementById('historyList');
+  const historyCount = document.getElementById('historyCount');
+
+  historyList.innerHTML = `
+    <div style="padding: 40px 20px; text-align: center; color: #a0aec0;">
+      <div style="font-size: 48px; margin-bottom: 16px;">📜</div>
+      <div style="font-size: 14px;">No recently closed tabs</div>
+    </div>
+  `;
+  historyCount.textContent = '0';
+
+  showNotification('History cleared', 'success');
+}
+
+// Helper: Get time ago string
+function getTimeAgo(timestamp) {
+  const now = Date.now();
+  const diff = now - timestamp;
+
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return 'Just now';
+}
+
+// Helper: Truncate URL for display
+function truncateUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    const path = urlObj.pathname + urlObj.search;
+    if (path.length > 40) {
+      return urlObj.hostname + path.substring(0, 37) + '...';
+    }
+    return urlObj.hostname + path;
+  } catch {
+    return url.substring(0, 50) + (url.length > 50 ? '...' : '');
+  }
+}
+
+// Helper: Escape HTML to prevent XSS
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
 // Group tabs by domain using Chrome's native tab groups
 async function groupTabsByDomain() {
   try {
@@ -1022,6 +1226,7 @@ function showHelpDialog() {
         <ul>
           <li><strong>Organize Tabs:</strong> Create Chrome tab groups by domain (with colors!)</li>
           <li><strong>Unorganize:</strong> Remove all tab groups and return to flat view</li>
+          <li><strong>Undo Close:</strong> Restore the last closed tab instantly</li>
           <li><strong>Close Duplicates:</strong> Remove tabs with the same URL</li>
         </ul>
       </div>

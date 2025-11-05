@@ -6,7 +6,8 @@
   "permissions": [
     "tabs",
     "storage",
-    "tabGroups"
+    "tabGroups",
+    "sessions"
   ],
   "action": {
     "default_popup": "popup.html",
