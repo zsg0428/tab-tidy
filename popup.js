@@ -10,6 +10,7 @@ let expandedGroups = new Set(); // Track which groups are expanded
 let currentFilter = 'all'; // Current filter selection
 let settings = null; // User settings
 let recentlyClosedTabs = []; // Recently closed tabs (max 10)
+let hiddenHistoryIds = new Set(); // Track hidden history items
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -946,10 +947,33 @@ async function loadHistory() {
     const historyList = document.getElementById('historyList');
     const historyCount = document.getElementById('historyCount');
 
+    // Load hidden history IDs from storage
+    const result = await chrome.storage.local.get('hiddenHistoryIds');
+    hiddenHistoryIds = new Set(result.hiddenHistoryIds || []);
+
     // Get recently closed sessions (max 25)
     const sessions = await chrome.sessions.getRecentlyClosed({ maxResults: 25 });
 
-    if (sessions.length === 0) {
+    // Clean up hidden IDs - remove IDs that no longer exist in sessions
+    const currentSessionIds = new Set(
+      sessions
+        .filter(s => s.tab)
+        .map(s => s.tab.sessionId)
+    );
+
+    const cleanedHiddenIds = Array.from(hiddenHistoryIds).filter(id => currentSessionIds.has(id));
+
+    if (cleanedHiddenIds.length !== hiddenHistoryIds.size) {
+      hiddenHistoryIds = new Set(cleanedHiddenIds);
+      await chrome.storage.local.set({ hiddenHistoryIds: cleanedHiddenIds });
+    }
+
+    // Filter only tab sessions (not windows) and filter out hidden ones
+    const tabSessions = sessions
+      .filter(session => session.tab)
+      .filter(session => !hiddenHistoryIds.has(session.tab.sessionId));
+
+    if (tabSessions.length === 0) {
       historyList.innerHTML = `
         <div style="padding: 40px 20px; text-align: center; color: #a0aec0;">
           <div style="font-size: 48px; margin-bottom: 16px;">📜</div>
@@ -960,8 +984,6 @@ async function loadHistory() {
       return;
     }
 
-    // Filter only tab sessions (not windows) and render
-    const tabSessions = sessions.filter(session => session.tab);
     historyCount.textContent = tabSessions.length.toString();
 
     historyList.innerHTML = tabSessions.map(session => {
@@ -1005,6 +1027,13 @@ async function loadHistory() {
       const removeBtn = item.querySelector('.remove-history-btn');
       removeBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
+
+        // Add to hidden list
+        hiddenHistoryIds.add(sessionId);
+        await chrome.storage.local.set({
+          hiddenHistoryIds: Array.from(hiddenHistoryIds)
+        });
+
         item.remove();
         // Update count
         const remaining = historyList.querySelectorAll('.history-item').length;
@@ -1049,18 +1078,35 @@ async function restoreHistoryItem(sessionId) {
 
 // Clear all history
 async function clearHistory() {
-  const historyList = document.getElementById('historyList');
-  const historyCount = document.getElementById('historyCount');
+  try {
+    const historyList = document.getElementById('historyList');
+    const historyCount = document.getElementById('historyCount');
 
-  historyList.innerHTML = `
-    <div style="padding: 40px 20px; text-align: center; color: #a0aec0;">
-      <div style="font-size: 48px; margin-bottom: 16px;">📜</div>
-      <div style="font-size: 14px;">No recently closed tabs</div>
-    </div>
-  `;
-  historyCount.textContent = '0';
+    // Get all current session IDs
+    const sessions = await chrome.sessions.getRecentlyClosed({ maxResults: 25 });
+    const allSessionIds = sessions
+      .filter(s => s.tab)
+      .map(s => s.tab.sessionId);
 
-  showNotification('History cleared', 'success');
+    // Add all to hidden list
+    hiddenHistoryIds = new Set([...hiddenHistoryIds, ...allSessionIds]);
+    await chrome.storage.local.set({
+      hiddenHistoryIds: Array.from(hiddenHistoryIds)
+    });
+
+    historyList.innerHTML = `
+      <div style="padding: 40px 20px; text-align: center; color: #a0aec0;">
+        <div style="font-size: 48px; margin-bottom: 16px;">📜</div>
+        <div style="font-size: 14px;">No recently closed tabs</div>
+      </div>
+    `;
+    historyCount.textContent = '0';
+
+    showNotification('History cleared', 'success');
+  } catch (error) {
+    console.error('Error clearing history:', error);
+    showNotification('Error clearing history', 'error');
+  }
 }
 
 // Helper: Get time ago string
