@@ -186,6 +186,11 @@ function createTabItem(tab) {
   title.textContent = tab.title;
   title.title = tab.title;
 
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'save-btn';
+  saveBtn.title = 'Save tab';
+  saveBtn.textContent = '💾';
+
   const closeBtn = document.createElement('button');
   closeBtn.className = 'close-btn';
   closeBtn.title = 'Close tab';
@@ -194,13 +199,14 @@ function createTabItem(tab) {
   item.appendChild(checkbox);
   item.appendChild(img);
   item.appendChild(title);
+  item.appendChild(saveBtn);
   item.appendChild(closeBtn);
 
   // Click item to toggle selection in select mode or switch tab
   item.addEventListener('click', async (e) => {
     if (tabSelectMode) {
-      // Don't toggle if clicking close button
-      if (!e.target.closest('.close-btn')) {
+      // Don't toggle if clicking save or close buttons
+      if (!e.target.closest('.save-btn') && !e.target.closest('.close-btn')) {
         toggleTabSelection(tab.id);
       }
     } else {
@@ -209,6 +215,14 @@ function createTabItem(tab) {
         await chrome.tabs.update(tab.id, { active: true });
         window.close();
       }
+    }
+  });
+
+  // Click to save individual tab
+  saveBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!tabSelectMode) {
+      await saveIndividualTab(tab);
     }
   });
 
@@ -288,62 +302,13 @@ async function closeDuplicateTabs() {
 
 // Save all tabs
 async function saveAllTabs() {
-  const groupName = prompt('Enter a name for this tab group:');
+  const tabsToSave = allTabs.map(tab => ({
+    title: tab.title,
+    url: tab.url,
+    favIconUrl: tab.favIconUrl
+  }));
 
-  if (!groupName) return;
-
-  showLoading('Saving tabs...');
-
-  try {
-    // Check for duplicate name
-    const result = await chrome.storage.local.get('savedGroups');
-    const savedGroups = result.savedGroups || [];
-    const existingGroup = savedGroups.find(g => g.name.toLowerCase() === groupName.toLowerCase());
-
-    if (existingGroup) {
-      hideLoading();
-      const overwrite = confirm(`A group named "${groupName}" already exists. Do you want to overwrite it?`);
-      if (!overwrite) {
-        // Ask for new name
-        saveAllTabs();
-        return;
-      }
-      showLoading('Saving tabs...');
-      // Remove existing group
-      const filteredGroups = savedGroups.filter(g => g.id !== existingGroup.id);
-      await chrome.storage.local.set({ savedGroups: filteredGroups });
-    }
-
-    const tabGroup = {
-      id: Date.now().toString(),
-      name: groupName,
-      timestamp: Date.now(),
-      tabs: allTabs.map(tab => ({
-        title: tab.title,
-        url: tab.url,
-        favIconUrl: tab.favIconUrl
-      }))
-    };
-
-    // Save to storage
-    const updatedGroups = await chrome.storage.local.get('savedGroups');
-    const groups = updatedGroups.savedGroups || [];
-    groups.unshift(tabGroup);
-
-    await chrome.storage.local.set({ savedGroups: groups });
-
-    hideLoading();
-
-    // Show custom dialog for closing tabs
-    showCloseTabsDialog(tabGroup.tabs);
-
-    await loadSavedGroups();
-    showNotification(`Saved ${allTabs.length} tabs`, 'success');
-  } catch (error) {
-    hideLoading();
-    showNotification('Error saving tabs', 'error');
-    console.error('Error saving tabs:', error);
-  }
+  await showGroupSelectionDialog(tabsToSave);
 }
 
 // Show custom dialog for closing tabs
@@ -1018,64 +983,18 @@ async function saveSelectedTabs() {
     return;
   }
 
-  const groupName = prompt('Enter a name for this tab group:');
-  if (!groupName) return;
+  const tabsToSave = allTabs
+    .filter(tab => selectedTabs.has(tab.id))
+    .map(tab => ({
+      title: tab.title,
+      url: tab.url,
+      favIconUrl: tab.favIconUrl
+    }));
 
-  showLoading('Saving selected tabs...');
-
-  try {
-    // Check for duplicate name
-    const result = await chrome.storage.local.get('savedGroups');
-    const savedGroups = result.savedGroups || [];
-    const existingGroup = savedGroups.find(g => g.name.toLowerCase() === groupName.toLowerCase());
-
-    if (existingGroup) {
-      hideLoading();
-      const overwrite = confirm(`A group named "${groupName}" already exists. Do you want to overwrite it?`);
-      if (!overwrite) {
-        // Ask for new name
-        await saveSelectedTabs();
-        return;
-      }
-      showLoading('Saving selected tabs...');
-      // Remove existing group
-      const filteredGroups = savedGroups.filter(g => g.id !== existingGroup.id);
-      await chrome.storage.local.set({ savedGroups: filteredGroups });
-    }
-
-    const tabsToSave = allTabs.filter(tab => selectedTabs.has(tab.id));
-
-    const tabGroup = {
-      id: Date.now().toString(),
-      name: groupName,
-      timestamp: Date.now(),
-      tabs: tabsToSave.map(tab => ({
-        title: tab.title,
-        url: tab.url,
-        favIconUrl: tab.favIconUrl
-      }))
-    };
-
-    // Save to storage
-    const updatedResult = await chrome.storage.local.get('savedGroups');
-    const groups = updatedResult.savedGroups || [];
-    groups.unshift(tabGroup);
-
-    await chrome.storage.local.set({ savedGroups: groups });
-
-    hideLoading();
-
-    showNotification(`Saved ${selectedTabs.size} tab${selectedTabs.size !== 1 ? 's' : ''}`, 'success');
-
-    // Clear selections and exit select mode
-    selectedTabs.clear();
-    toggleTabSelectMode();
-    await loadSavedGroups();
-  } catch (error) {
-    hideLoading();
-    showNotification('Error saving selected tabs', 'error');
-    console.error('Error saving selected tabs:', error);
-  }
+  // Clear selections and exit select mode after dialog closes
+  await showGroupSelectionDialog(tabsToSave);
+  selectedTabs.clear();
+  toggleTabSelectMode();
 }
 
 // Close selected tabs
@@ -1116,4 +1035,262 @@ async function closeSelectedTabs() {
     showNotification('Error closing tabs', 'error');
     console.error('Error closing tabs:', error);
   }
+}
+
+// ===== Individual Tab Save & Group Selection =====
+
+// Save individual tab
+async function saveIndividualTab(tab) {
+  const tabData = {
+    title: tab.title,
+    url: tab.url,
+    favIconUrl: tab.favIconUrl
+  };
+
+  await showGroupSelectionDialog([tabData]);
+}
+
+// Show group selection dialog
+async function showGroupSelectionDialog(tabsToSave) {
+  const result = await chrome.storage.local.get('savedGroups');
+  const savedGroups = result.savedGroups || [];
+
+  const dialog = document.createElement('div');
+  dialog.className = 'custom-dialog group-selection-dialog';
+
+  let groupListHTML = '';
+  if (savedGroups.length > 0) {
+    groupListHTML = savedGroups.map(group => `
+      <div class="group-option" data-group-id="${group.id}">
+        <div class="group-option-name">${escapeHtml(group.name)}</div>
+        <div class="group-option-info">${group.tabs.length} tabs</div>
+      </div>
+    `).join('');
+  } else {
+    groupListHTML = '<div class="empty-state-text" style="padding: 20px; text-align: center; color: #a0aec0;">No existing groups</div>';
+  }
+
+  dialog.innerHTML = `
+    <div class="dialog-overlay"></div>
+    <div class="dialog-content group-selection-content">
+      <h3>Save ${tabsToSave.length} tab${tabsToSave.length !== 1 ? 's' : ''}</h3>
+      <p style="margin-bottom: 16px; color: #64748b;">Choose where to save:</p>
+
+      <button class="dialog-btn primary full-width" id="createNewGroupBtn" style="margin-bottom: 16px;">
+        <span>➕ Create New Group</span>
+      </button>
+
+      <div style="text-align: center; margin: 16px 0; color: #a0aec0; font-size: 12px;">OR</div>
+
+      <div style="margin-bottom: 12px; font-weight: 500; color: #4a5568;">Add to existing group:</div>
+      <div class="group-list">
+        ${groupListHTML}
+      </div>
+
+      <button class="dialog-btn secondary full-width" id="cancelGroupSelectionBtn" style="margin-top: 16px;">
+        Cancel
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(dialog);
+
+  // Create new group button
+  document.getElementById('createNewGroupBtn').addEventListener('click', async () => {
+    document.body.removeChild(dialog);
+    const groupName = prompt('Enter a name for the new group:');
+    if (groupName) {
+      await saveTabsToNewGroup(tabsToSave, groupName);
+    }
+  });
+
+  // Existing group options
+  const groupOptions = dialog.querySelectorAll('.group-option');
+  groupOptions.forEach(option => {
+    option.addEventListener('click', async () => {
+      const groupId = option.dataset.groupId;
+      document.body.removeChild(dialog);
+      await saveTabsToExistingGroup(tabsToSave, groupId);
+    });
+  });
+
+  // Cancel button
+  document.getElementById('cancelGroupSelectionBtn').addEventListener('click', () => {
+    document.body.removeChild(dialog);
+  });
+
+  // Click overlay to close
+  dialog.querySelector('.dialog-overlay').addEventListener('click', () => {
+    document.body.removeChild(dialog);
+  });
+}
+
+// Save tabs to new group
+async function saveTabsToNewGroup(tabsToSave, groupName) {
+  try {
+    showLoading('Saving to new group...');
+
+    // Check for duplicate group name
+    const result = await chrome.storage.local.get('savedGroups');
+    const savedGroups = result.savedGroups || [];
+    const existingGroup = savedGroups.find(g => g.name.toLowerCase() === groupName.toLowerCase());
+
+    if (existingGroup) {
+      hideLoading();
+      const overwrite = confirm(`A group named "${groupName}" already exists. Do you want to overwrite it?`);
+      if (!overwrite) {
+        // Re-show dialog
+        await showGroupSelectionDialog(tabsToSave);
+        return;
+      }
+      // Remove existing group
+      const filteredGroups = savedGroups.filter(g => g.id !== existingGroup.id);
+      await chrome.storage.local.set({ savedGroups: filteredGroups });
+      showLoading('Saving to new group...');
+    }
+
+    const tabGroup = {
+      id: Date.now().toString(),
+      name: groupName,
+      timestamp: Date.now(),
+      tabs: tabsToSave
+    };
+
+    const updatedResult = await chrome.storage.local.get('savedGroups');
+    const groups = updatedResult.savedGroups || [];
+    groups.unshift(tabGroup);
+
+    await chrome.storage.local.set({ savedGroups: groups });
+
+    hideLoading();
+    showNotification(`Saved ${tabsToSave.length} tab${tabsToSave.length !== 1 ? 's' : ''} to "${groupName}"`, 'success');
+    await loadSavedGroups();
+  } catch (error) {
+    hideLoading();
+    showNotification('Error saving tabs', 'error');
+    console.error('Error saving tabs:', error);
+  }
+}
+
+// Save tabs to existing group
+async function saveTabsToExistingGroup(tabsToSave, groupId) {
+  try {
+    showLoading('Checking for duplicates...');
+
+    const result = await chrome.storage.local.get('savedGroups');
+    const savedGroups = result.savedGroups || [];
+    const targetGroup = savedGroups.find(g => g.id === groupId);
+
+    if (!targetGroup) {
+      hideLoading();
+      showNotification('Group not found', 'error');
+      return;
+    }
+
+    // Check for duplicate URLs
+    const existingUrls = new Set(targetGroup.tabs.map(t => t.url));
+    const duplicates = tabsToSave.filter(t => existingUrls.has(t.url));
+    const newTabs = tabsToSave.filter(t => !existingUrls.has(t.url));
+
+    hideLoading();
+
+    if (duplicates.length > 0) {
+      // Show duplicate warning dialog
+      const action = await showDuplicateDialog(duplicates.length, newTabs.length, targetGroup.name);
+
+      if (action === 'skip') {
+        // Only save non-duplicates
+        if (newTabs.length === 0) {
+          showNotification('All tabs already exist in this group', 'info');
+          return;
+        }
+        showLoading('Saving new tabs...');
+        targetGroup.tabs.push(...newTabs);
+      } else if (action === 'keep') {
+        // Save all including duplicates
+        showLoading('Saving all tabs...');
+        targetGroup.tabs.push(...tabsToSave);
+      } else {
+        // Cancel
+        return;
+      }
+    } else {
+      // No duplicates, save all
+      showLoading('Saving tabs...');
+      targetGroup.tabs.push(...tabsToSave);
+    }
+
+    await chrome.storage.local.set({ savedGroups: savedGroups });
+
+    hideLoading();
+    const savedCount = duplicates.length > 0 && newTabs.length > 0 ? newTabs.length : tabsToSave.length;
+    showNotification(`Saved ${savedCount} tab${savedCount !== 1 ? 's' : ''} to "${targetGroup.name}"`, 'success');
+    await loadSavedGroups();
+  } catch (error) {
+    hideLoading();
+    showNotification('Error saving tabs', 'error');
+    console.error('Error saving tabs:', error);
+  }
+}
+
+// Show duplicate warning dialog
+function showDuplicateDialog(duplicateCount, newCount, groupName) {
+  return new Promise((resolve) => {
+    const dialog = document.createElement('div');
+    dialog.className = 'custom-dialog duplicate-dialog';
+
+    dialog.innerHTML = `
+      <div class="dialog-overlay"></div>
+      <div class="dialog-content">
+        <h3>⚠️ Duplicate Tabs Found</h3>
+        <p style="margin: 16px 0; line-height: 1.5;">
+          <strong>${duplicateCount}</strong> tab${duplicateCount !== 1 ? 's' : ''} already exist${duplicateCount === 1 ? 's' : ''} in "<strong>${escapeHtml(groupName)}</strong>"
+          ${newCount > 0 ? `<br><strong>${newCount}</strong> new tab${newCount !== 1 ? 's' : ''} will be added` : ''}
+        </p>
+        <div style="margin: 20px 0; padding: 12px; background: #f7fafc; border-radius: 6px; font-size: 13px; color: #64748b;">
+          What would you like to do?
+        </div>
+        <div class="dialog-actions" style="flex-direction: column; gap: 8px;">
+          ${newCount > 0 ? `
+            <button class="dialog-btn primary full-width" id="skipDuplicatesBtn">
+              <span>Skip Duplicates</span>
+              <span class="btn-hint">Only add ${newCount} new tab${newCount !== 1 ? 's' : ''}</span>
+            </button>
+          ` : ''}
+          <button class="dialog-btn ${newCount > 0 ? 'secondary' : 'primary'} full-width" id="keepDuplicatesBtn">
+            <span>Keep All</span>
+            <span class="btn-hint">Save duplicates anyway</span>
+          </button>
+          <button class="dialog-btn secondary full-width" id="cancelDuplicateBtn">
+            Cancel
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(dialog);
+
+    const skipBtn = document.getElementById('skipDuplicatesBtn');
+    if (skipBtn) {
+      skipBtn.addEventListener('click', () => {
+        document.body.removeChild(dialog);
+        resolve('skip');
+      });
+    }
+
+    document.getElementById('keepDuplicatesBtn').addEventListener('click', () => {
+      document.body.removeChild(dialog);
+      resolve('keep');
+    });
+
+    document.getElementById('cancelDuplicateBtn').addEventListener('click', () => {
+      document.body.removeChild(dialog);
+      resolve('cancel');
+    });
+
+    dialog.querySelector('.dialog-overlay').addEventListener('click', () => {
+      document.body.removeChild(dialog);
+      resolve('cancel');
+    });
+  });
 }

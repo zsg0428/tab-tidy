@@ -285,6 +285,27 @@ body {
   margin-left: 8px;
 }
 
+.save-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: all 0.2s;
+  margin-left: auto;
+}
+
+.tab-item:hover .save-btn {
+  opacity: 1;
+}
+
+.save-btn:hover {
+  background: #e6f7ff;
+  color: #4fc3f7;
+}
+
 .close-btn {
   background: none;
   border: none;
@@ -866,4 +887,56 @@ body {
 
 .full-width {
   width: 100%;
+}
+
+/* Group Selection Dialog */
+.group-selection-content {
+  max-width: 360px;
+}
+
+.group-list {
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f7fafc;
+  padding: 4px;
+}
+
+.group-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.group-option:hover {
+  background: #e6f7ff;
+  border-color: #4fc3f7;
+  transform: translateX(2px);
+}
+
+.group-option-name {
+  font-weight: 500;
+  color: #2d3748;
+  font-size: 14px;
+}
+
+.group-option-info {
+  font-size: 12px;
+  color: #a0aec0;
+  background: #edf2f7;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.group-option:hover .group-option-info {
+  background: #4fc3f7;
+  color: white;
 }
