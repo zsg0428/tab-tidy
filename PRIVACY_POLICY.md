@@ -1,6 +1,6 @@
 # Privacy Policy for TabTidy
 
-**Last Updated:** November 5, 2024
+**Last Updated:** November 5, 2025
 
 ## Overview
 
@@ -76,7 +76,7 @@ We may update this privacy policy from time to time. Any changes will be posted 
 If you have questions about this privacy policy, please:
 
 - Open an issue on GitHub: https://github.com/zsg0428/tab-tidy/issues
-- Email: zsg258852@gmail.com
+- Email: [zsg258852@gmail.com]()
 
 ## Summary
 
