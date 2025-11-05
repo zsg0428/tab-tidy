@@ -68,9 +68,10 @@ function switchTab(tabName) {
 async function loadTabs() {
   try {
     allTabs = await chrome.tabs.query({ currentWindow: true });
-    filteredTabs = [...allTabs];
     updateStats();
-    renderTabs();
+    // Reapply current filter and search after loading
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    applyFilters(query);
   } catch (error) {
     console.error('Error loading tabs:', error);
   }
@@ -187,6 +188,22 @@ function createTabItem(tab) {
   title.textContent = tab.title;
   title.title = tab.title;
 
+  // Pin button
+  const pinBtn = document.createElement('button');
+  pinBtn.className = 'tab-action-btn pin-btn';
+  pinBtn.textContent = tab.pinned ? '📌' : '📍';
+  pinBtn.title = tab.pinned ? 'Unpin tab' : 'Pin tab';
+
+  // Mute button (only show if tab has audio capability)
+  const muteBtn = document.createElement('button');
+  muteBtn.className = 'tab-action-btn mute-btn';
+  if (tab.audible || (tab.mutedInfo && tab.mutedInfo.muted)) {
+    muteBtn.textContent = (tab.mutedInfo && tab.mutedInfo.muted) ? '🔇' : '🔊';
+    muteBtn.title = (tab.mutedInfo && tab.mutedInfo.muted) ? 'Unmute tab' : 'Mute tab';
+  } else {
+    muteBtn.style.display = 'none';
+  }
+
   const saveBtn = document.createElement('button');
   saveBtn.className = 'save-btn';
   saveBtn.title = 'Save tab';
@@ -200,6 +217,8 @@ function createTabItem(tab) {
   item.appendChild(checkbox);
   item.appendChild(img);
   item.appendChild(title);
+  item.appendChild(pinBtn);
+  item.appendChild(muteBtn);
   item.appendChild(saveBtn);
   item.appendChild(closeBtn);
 
@@ -216,6 +235,25 @@ function createTabItem(tab) {
         await chrome.tabs.update(tab.id, { active: true });
         window.close();
       }
+    }
+  });
+
+  // Click to pin/unpin tab
+  pinBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!tabSelectMode) {
+      await chrome.tabs.update(tab.id, { pinned: !tab.pinned });
+      await loadTabs();
+    }
+  });
+
+  // Click to mute/unmute tab
+  muteBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!tabSelectMode) {
+      const isMuted = tab.mutedInfo && tab.mutedInfo.muted;
+      await chrome.tabs.update(tab.id, { muted: !isMuted });
+      await loadTabs();
     }
   });
 
@@ -289,7 +327,8 @@ function applyFilters(searchQuery = '') {
       tabs = tabs.filter(tab => !tab.pinned);
       break;
     case 'audible':
-      tabs = tabs.filter(tab => tab.audible);
+      // Only show tabs that are playing audio AND not muted
+      tabs = tabs.filter(tab => tab.audible && !(tab.mutedInfo && tab.mutedInfo.muted));
       break;
     case 'muted':
       tabs = tabs.filter(tab => tab.mutedInfo && tab.mutedInfo.muted);
