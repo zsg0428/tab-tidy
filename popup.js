@@ -71,6 +71,8 @@ function setupEventListeners() {
   document.getElementById('closeDuplicatesBtn').addEventListener('click', closeDuplicateTabs);
   document.getElementById('saveAllBtn').addEventListener('click', saveAllTabs);
   document.getElementById('toggleGroupView').addEventListener('click', toggleGroupView);
+  document.getElementById('groupByDomainBtn').addEventListener('click', groupTabsByDomain);
+  document.getElementById('ungroupAllBtn').addEventListener('click', ungroupAllTabs);
   document.getElementById('helpBtn').addEventListener('click', showHelpDialog);
   document.getElementById('settingsBtn').addEventListener('click', () => {
     chrome.tabs.create({ url: 'settings.html' });
@@ -164,7 +166,7 @@ function renderFlatTabs(container) {
 
 // Render grouped by domain
 function renderGroupedTabs(container) {
-  const grouped = groupTabsByDomain(filteredTabs);
+  const grouped = groupTabsForDisplay(filteredTabs);
 
   Object.entries(grouped).forEach(([domain, tabs]) => {
     const domainGroup = document.createElement('div');
@@ -325,8 +327,8 @@ function createTabItem(tab) {
   return item;
 }
 
-// Group tabs by domain
-function groupTabsByDomain(tabs) {
+// Group tabs by domain for display purposes (helper function)
+function groupTabsForDisplay(tabs) {
   const grouped = {};
 
   tabs.forEach(tab => {
@@ -776,10 +778,9 @@ async function deleteGroup(groupId) {
   showNotification('Group deleted');
 }
 
-// Toggle group view
+// Toggle group view (display mode only, doesn't create actual Chrome tab groups)
 function toggleGroupView() {
   groupByDomain = !groupByDomain;
-  renderTabs();
 
   const btn = document.getElementById('toggleGroupView');
   const icon = btn.querySelector('.toggle-icon');
@@ -787,14 +788,110 @@ function toggleGroupView() {
 
   if (groupByDomain) {
     icon.textContent = '📂';
-    text.textContent = 'Grouped';
+    text.textContent = 'Grouped View';
     btn.classList.add('grouped');
-    btn.title = 'Switch to list view';
+    btn.title = 'Switch to flat list view';
   } else {
     icon.textContent = '📋';
     text.textContent = 'List View';
     btn.classList.remove('grouped');
-    btn.title = 'Switch to grouped view';
+    btn.title = 'Switch to grouped display';
+  }
+
+  // Just re-render with current data, no reload needed
+  renderTabs();
+}
+
+// Ungroup all tabs (remove all tab groups)
+async function ungroupAllTabs() {
+  try {
+    showLoading('Ungrouping tabs...');
+
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const groupedTabs = tabs.filter(tab => tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE);
+
+    if (groupedTabs.length === 0) {
+      hideLoading();
+      showNotification('No grouped tabs found', 'info');
+      return;
+    }
+
+    const tabIds = groupedTabs.map(tab => tab.id);
+    await chrome.tabs.ungroup(tabIds);
+
+    hideLoading();
+    showNotification(`Ungrouped ${groupedTabs.length} tab${groupedTabs.length !== 1 ? 's' : ''}`, 'success');
+
+    // Reload to show updated tabs
+    await loadTabs();
+  } catch (error) {
+    hideLoading();
+    console.error('Error ungrouping tabs:', error);
+    showNotification('Error ungrouping tabs', 'error');
+  }
+}
+
+// Group tabs by domain using Chrome's native tab groups
+async function groupTabsByDomain() {
+  try {
+    showLoading('Grouping tabs by domain...');
+
+    const tabs = await chrome.tabs.query({ currentWindow: true });
+    const domainMap = new Map();
+
+    // Group tabs by hostname
+    tabs.forEach(tab => {
+      try {
+        const url = new URL(tab.url);
+        const hostname = url.hostname || 'Other';
+
+        if (!domainMap.has(hostname)) {
+          domainMap.set(hostname, []);
+        }
+        domainMap.get(hostname).push(tab.id);
+      } catch (error) {
+        // Handle invalid URLs (chrome://, about:, etc.)
+        if (!domainMap.has('Other')) {
+          domainMap.set('Other', []);
+        }
+        domainMap.get('Other').push(tab.id);
+      }
+    });
+
+    // Available colors for groups
+    const colors = ['grey', 'blue', 'red', 'yellow', 'green', 'pink', 'purple', 'cyan', 'orange'];
+    let colorIndex = 0;
+    let groupCount = 0;
+
+    // Create tab groups for each domain
+    for (const [domain, tabIds] of domainMap) {
+      // Only create group if there are multiple tabs from same domain
+      if (tabIds.length > 1) {
+        const groupId = await chrome.tabs.group({ tabIds });
+        await chrome.tabGroups.update(groupId, {
+          title: domain,
+          color: colors[colorIndex % colors.length],
+          collapsed: false
+        });
+        colorIndex++;
+        groupCount++;
+      }
+    }
+
+    hideLoading();
+
+    if (groupCount > 0) {
+      showNotification(`Created ${groupCount} tab group${groupCount !== 1 ? 's' : ''}`, 'success');
+    } else {
+      showNotification('No groups created (need multiple tabs per domain)', 'info');
+    }
+
+    // Reload to show updated tab groups
+    await loadTabs();
+  } catch (error) {
+    hideLoading();
+    console.error('Error grouping tabs:', error);
+    showNotification('Error grouping tabs', 'error');
   }
 }
 
@@ -835,33 +932,46 @@ function showHelpDialog() {
       <div class="help-section">
         <h4>📋 Current Tabs</h4>
         <ul>
-          <li><strong>Search:</strong> Quickly find tabs by title or URL</li>
-          <li><strong>Click tab:</strong> Switch to that tab</li>
-          <li><strong>❌ button:</strong> Close individual tab</li>
-          <li><strong>List/Grouped View:</strong> Toggle between flat and domain-grouped view</li>
+          <li><strong>Search & Filter:</strong> Find tabs by title/URL, filter by pinned status or audio</li>
+          <li><strong>Click tab:</strong> Switch to that tab instantly</li>
+          <li><strong>Tab actions:</strong> Pin/unpin (📌), mute/unmute (🔊), save (💾), or close (❌)</li>
+          <li><strong>Display modes:</strong> List View or Grouped View (organize by domain in popup)</li>
+          <li><strong>Select mode:</strong> Choose multiple tabs for batch operations</li>
         </ul>
       </div>
 
       <div class="help-section">
         <h4>💾 Saved Groups</h4>
         <ul>
-          <li><strong>Save All:</strong> Save all current tabs as a named group</li>
-          <li><strong>Restore:</strong> Click ↩️ to bring back saved tabs</li>
-          <li><strong>Delete:</strong> Click 🗑️ to remove a group</li>
-          <li><strong>Choose:</strong> Keep tabs open or close them after saving</li>
+          <li><strong>Save tabs:</strong> Save all, selected, or individual tabs to named groups</li>
+          <li><strong>Group preview:</strong> Expand groups to see all tabs, click to restore individual tabs</li>
+          <li><strong>Restore:</strong> Click ↩️ to reopen all tabs from a group</li>
+          <li><strong>Delete:</strong> Remove individual tabs or entire groups</li>
+          <li><strong>Batch operations:</strong> Select multiple groups to restore or delete together</li>
+          <li><strong>Duplicate detection:</strong> Automatically warns when saving duplicate URLs</li>
         </ul>
       </div>
 
       <div class="help-section">
-        <h4>🧹 Quick Actions</h4>
+        <h4>🎨 Tab Organization</h4>
         <ul>
-          <li><strong>Close Duplicates:</strong> Remove tabs with same URL</li>
-          <li><strong>Tab Count:</strong> See number badges on each tab</li>
+          <li><strong>Organize Tabs:</strong> Create Chrome tab groups by domain (with colors!)</li>
+          <li><strong>Unorganize:</strong> Remove all tab groups and return to flat view</li>
+          <li><strong>Close Duplicates:</strong> Remove tabs with the same URL</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <h4>⚙️ Settings</h4>
+        <ul>
+          <li><strong>Preferences:</strong> Customize default view, tab count display, and more</li>
+          <li><strong>Data management:</strong> Export/import your saved groups as JSON</li>
+          <li><strong>Storage info:</strong> See how much data you're using</li>
         </ul>
       </div>
 
       <div class="help-footer">
-        <p>💡 <strong>Tip:</strong> TabTidy stores all data locally - your tabs never leave your device!</p>
+        <p>💡 <strong>Privacy:</strong> All data is stored locally on your device. Nothing is sent to servers!</p>
       </div>
 
       <button class="dialog-btn primary full-width" id="closeHelpBtn">
