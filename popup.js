@@ -6,6 +6,7 @@ let selectMode = false;
 let selectedGroups = new Set();
 let tabSelectMode = false;
 let selectedTabs = new Set();
+let expandedGroups = new Set(); // Track which groups are expanded
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -76,8 +77,6 @@ async function loadTabs() {
 // Update stats
 function updateStats() {
   const tabCount = allTabs.length;
-  document.getElementById('tabCount').textContent = `${tabCount} tab${tabCount !== 1 ? 's' : ''}`;
-
   // Update tab count badges
   document.getElementById('currentTabCount').textContent = tabCount;
 }
@@ -400,8 +399,6 @@ async function loadSavedGroups() {
   const savedGroups = result.savedGroups || [];
 
   const groupCount = savedGroups.length;
-  document.getElementById('groupCount').textContent = `${groupCount} saved group${groupCount !== 1 ? 's' : ''}`;
-
   // Update saved groups count badge
   document.getElementById('savedGroupCount').textContent = groupCount;
 
@@ -533,14 +530,16 @@ function renderSavedGroups(groups) {
             if (groupToUpdate.tabs.length === 0) {
               const filtered = savedGroups.filter(g => g.id !== group.id);
               await chrome.storage.local.set({ savedGroups: filtered });
+              // Clean up expanded state
+              expandedGroups.delete(group.id);
               showNotification('Group deleted (no tabs remaining)', 'info');
             } else {
-              // Update the group
+              // Update the group (keep it expanded)
               await chrome.storage.local.set({ savedGroups: savedGroups });
               showNotification('Tab removed from group', 'success');
             }
 
-            // Reload the saved groups
+            // Reload the saved groups (expanded state will be preserved)
             await loadSavedGroups();
           }
         } catch (error) {
@@ -558,14 +557,35 @@ function renderSavedGroups(groups) {
       // Let it bubble to groupItem click handler
     });
 
-    // Expand/collapse tabs preview
+    // Get expand button reference
     const expandBtn = groupItem.querySelector('.expand-btn');
-    expandBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
+
+    // Function to toggle expand/collapse
+    const toggleExpand = () => {
       const isExpanded = tabsPreview.style.display === 'block';
       tabsPreview.style.display = isExpanded ? 'none' : 'block';
       expandBtn.textContent = isExpanded ? '▼' : '▲';
       expandBtn.title = isExpanded ? 'Show tabs' : 'Hide tabs';
+
+      // Update expanded state
+      if (isExpanded) {
+        expandedGroups.delete(group.id);
+      } else {
+        expandedGroups.add(group.id);
+      }
+    };
+
+    // Restore expanded state if this group was expanded before
+    if (expandedGroups.has(group.id)) {
+      tabsPreview.style.display = 'block';
+      expandBtn.textContent = '▲';
+      expandBtn.title = 'Hide tabs';
+    }
+
+    // Expand/collapse tabs preview
+    expandBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleExpand();
     });
 
     // Click group header to expand/collapse
@@ -579,10 +599,7 @@ function renderSavedGroups(groups) {
       } else {
         // In normal mode, toggle expand/collapse (except when clicking action buttons)
         if (!e.target.closest('.group-actions')) {
-          const isExpanded = tabsPreview.style.display === 'block';
-          tabsPreview.style.display = isExpanded ? 'none' : 'block';
-          expandBtn.textContent = isExpanded ? '▼' : '▲';
-          expandBtn.title = isExpanded ? 'Show tabs' : 'Hide tabs';
+          toggleExpand();
         }
       }
     });
@@ -629,6 +646,10 @@ async function deleteGroup(groupId) {
   const filtered = savedGroups.filter(g => g.id !== groupId);
 
   await chrome.storage.local.set({ savedGroups: filtered });
+
+  // Clean up expanded state
+  expandedGroups.delete(groupId);
+
   await loadSavedGroups();
   showNotification('Group deleted');
 }
@@ -882,6 +903,9 @@ async function deleteSelectedGroups() {
     hideLoading();
 
     showNotification(`Deleted ${selectedGroups.size} group${selectedGroups.size !== 1 ? 's' : ''}`, 'info');
+
+    // Clean up expanded state for deleted groups
+    selectedGroups.forEach(groupId => expandedGroups.delete(groupId));
 
     // Clear selections and exit select mode
     selectedGroups.clear();

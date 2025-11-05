@@ -33,18 +33,6 @@
       <button id="searchBtn" class="icon-btn">🔍</button>
     </div>
 
-    <!-- Tab Stats -->
-    <div class="stats">
-      <span id="tabCount">0 tabs</span>
-      <span id="groupCount">0 groups</span>
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="quick-actions">
-      <button id="closeDuplicatesBtn" class="action-btn">Close Duplicates</button>
-      <button id="saveAllBtn" class="action-btn primary">💾 Save All</button>
-    </div>
-
     <!-- Tabs Navigation -->
     <div class="tabs-nav">
       <button class="tab-button active" data-tab="current">
@@ -78,6 +66,12 @@
           <button id="closeSelectedTabsBtn" class="action-btn">Close Selected</button>
         </div>
         <div id="tabList" class="tab-list"></div>
+
+        <!-- Quick Actions for Current Tabs (Fixed at Bottom) -->
+        <div class="quick-actions-bottom">
+          <button id="closeDuplicatesBtn" class="action-btn">Close Duplicates</button>
+          <button id="saveAllBtn" class="action-btn primary">💾 Save All</button>
+        </div>
       </div>
 
       <!-- Saved Groups Panel -->
