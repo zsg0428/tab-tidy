@@ -423,15 +423,31 @@ async function closeDuplicateTabs() {
   }
 }
 
-// Save all tabs
+// Save all tabs (with tab groups info)
 async function saveAllTabs() {
+  // Get all tab groups
+  const tabGroups = await chrome.tabGroups.query({ windowId: chrome.windows.WINDOW_ID_CURRENT });
+  const groupsMap = new Map();
+
+  // Create a map of groupId -> group info
+  tabGroups.forEach(group => {
+    groupsMap.set(group.id, {
+      id: group.id,
+      title: group.title || '',
+      color: group.color,
+      collapsed: group.collapsed
+    });
+  });
+
+  // Save tabs with their group info
   const tabsToSave = allTabs.map(tab => ({
     title: tab.title,
     url: tab.url,
-    favIconUrl: tab.favIconUrl
+    favIconUrl: tab.favIconUrl,
+    groupId: tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE ? tab.groupId : null
   }));
 
-  await showGroupSelectionDialog(tabsToSave);
+  await showGroupSelectionDialog(tabsToSave, Array.from(groupsMap.values()));
 }
 
 // Show custom dialog for closing tabs
@@ -748,17 +764,66 @@ function renderSavedGroups(groups) {
   });
 }
 
-// Restore group
+// Restore group (with tab groups if saved)
 async function restoreGroup(group) {
   showLoading('Restoring tabs...');
 
-  for (const tab of group.tabs) {
-    await chrome.tabs.create({ url: tab.url, active: false });
-  }
+  try {
+    const hasTabGroups = group.tabGroups && group.tabGroups.length > 0;
 
-  hideLoading();
-  showNotification(`Restored ${group.tabs.length} tabs`);
-  window.close();
+    if (hasTabGroups) {
+      // Restore with tab groups
+      const groupIdMap = new Map(); // Map old groupId -> new Chrome groupId
+      const createdTabs = [];
+
+      // First, create all tabs
+      for (const tab of group.tabs) {
+        const newTab = await chrome.tabs.create({ url: tab.url, active: false });
+        createdTabs.push({ ...newTab, originalGroupId: tab.groupId });
+      }
+
+      // Group tabs by their original groupId
+      const tabsByGroup = new Map();
+      createdTabs.forEach(tab => {
+        if (tab.originalGroupId) {
+          if (!tabsByGroup.has(tab.originalGroupId)) {
+            tabsByGroup.set(tab.originalGroupId, []);
+          }
+          tabsByGroup.get(tab.originalGroupId).push(tab.id);
+        }
+      });
+
+      // Create tab groups and assign tabs
+      for (const [oldGroupId, tabIds] of tabsByGroup) {
+        const groupInfo = group.tabGroups.find(g => g.id === oldGroupId);
+        if (groupInfo && tabIds.length > 0) {
+          const newGroupId = await chrome.tabs.group({ tabIds });
+          await chrome.tabGroups.update(newGroupId, {
+            title: groupInfo.title || '',
+            color: groupInfo.color,
+            collapsed: groupInfo.collapsed || false
+          });
+        }
+      }
+
+      hideLoading();
+      showNotification(`Restored ${group.tabs.length} tabs with ${group.tabGroups.length} group${group.tabGroups.length !== 1 ? 's' : ''}`);
+    } else {
+      // Restore without tab groups (legacy behavior)
+      for (const tab of group.tabs) {
+        await chrome.tabs.create({ url: tab.url, active: false });
+      }
+
+      hideLoading();
+      showNotification(`Restored ${group.tabs.length} tabs`);
+    }
+
+    window.close();
+  } catch (error) {
+    hideLoading();
+    console.error('Error restoring group:', error);
+    showNotification('Error restoring tabs', 'error');
+  }
 }
 
 // Delete group
@@ -1239,16 +1304,30 @@ async function saveSelectedTabs() {
     return;
   }
 
-  const tabsToSave = allTabs
-    .filter(tab => selectedTabs.has(tab.id))
-    .map(tab => ({
-      title: tab.title,
-      url: tab.url,
-      favIconUrl: tab.favIconUrl
+  // Get tab groups for selected tabs
+  const selectedTabsList = allTabs.filter(tab => selectedTabs.has(tab.id));
+  const groupIds = new Set(selectedTabsList.map(t => t.groupId).filter(id => id !== chrome.tabGroups.TAB_GROUP_ID_NONE));
+
+  let tabGroups = [];
+  if (groupIds.size > 0) {
+    const allGroups = await chrome.tabGroups.query({ windowId: chrome.windows.WINDOW_ID_CURRENT });
+    tabGroups = allGroups.filter(g => groupIds.has(g.id)).map(g => ({
+      id: g.id,
+      title: g.title || '',
+      color: g.color,
+      collapsed: g.collapsed
     }));
+  }
+
+  const tabsToSave = selectedTabsList.map(tab => ({
+    title: tab.title,
+    url: tab.url,
+    favIconUrl: tab.favIconUrl,
+    groupId: tab.groupId !== chrome.tabGroups.TAB_GROUP_ID_NONE ? tab.groupId : null
+  }));
 
   // Clear selections and exit select mode after dialog closes
-  await showGroupSelectionDialog(tabsToSave);
+  await showGroupSelectionDialog(tabsToSave, tabGroups);
   selectedTabs.clear();
   toggleTabSelectMode();
 }
@@ -1307,7 +1386,7 @@ async function saveIndividualTab(tab) {
 }
 
 // Show group selection dialog
-async function showGroupSelectionDialog(tabsToSave) {
+async function showGroupSelectionDialog(tabsToSave, tabGroups = []) {
   const result = await chrome.storage.local.get('savedGroups');
   const savedGroups = result.savedGroups || [];
 
@@ -1356,7 +1435,7 @@ async function showGroupSelectionDialog(tabsToSave) {
     document.body.removeChild(dialog);
     const groupName = prompt('Enter a name for the new group:');
     if (groupName) {
-      await saveTabsToNewGroup(tabsToSave, groupName);
+      await saveTabsToNewGroup(tabsToSave, groupName, tabGroups);
     }
   });
 
@@ -1366,7 +1445,7 @@ async function showGroupSelectionDialog(tabsToSave) {
     option.addEventListener('click', async () => {
       const groupId = option.dataset.groupId;
       document.body.removeChild(dialog);
-      await saveTabsToExistingGroup(tabsToSave, groupId);
+      await saveTabsToExistingGroup(tabsToSave, groupId, tabGroups);
     });
   });
 
@@ -1382,7 +1461,7 @@ async function showGroupSelectionDialog(tabsToSave) {
 }
 
 // Save tabs to new group
-async function saveTabsToNewGroup(tabsToSave, groupName) {
+async function saveTabsToNewGroup(tabsToSave, groupName, tabGroups = []) {
   try {
     showLoading('Saving to new group...');
 
@@ -1396,7 +1475,7 @@ async function saveTabsToNewGroup(tabsToSave, groupName) {
       const overwrite = confirm(`A group named "${groupName}" already exists. Do you want to overwrite it?`);
       if (!overwrite) {
         // Re-show dialog
-        await showGroupSelectionDialog(tabsToSave);
+        await showGroupSelectionDialog(tabsToSave, tabGroups);
         return;
       }
       // Remove existing group
@@ -1409,7 +1488,8 @@ async function saveTabsToNewGroup(tabsToSave, groupName) {
       id: Date.now().toString(),
       name: groupName,
       timestamp: Date.now(),
-      tabs: tabsToSave
+      tabs: tabsToSave,
+      tabGroups: tabGroups  // Store tab groups info
     };
 
     const updatedResult = await chrome.storage.local.get('savedGroups');
@@ -1419,7 +1499,11 @@ async function saveTabsToNewGroup(tabsToSave, groupName) {
     await chrome.storage.local.set({ savedGroups: groups });
 
     hideLoading();
-    showNotification(`Saved ${tabsToSave.length} tab${tabsToSave.length !== 1 ? 's' : ''} to "${groupName}"`, 'success');
+    const hasGroups = tabGroups.length > 0;
+    const message = hasGroups
+      ? `Saved ${tabsToSave.length} tabs with ${tabGroups.length} group${tabGroups.length !== 1 ? 's' : ''} to "${groupName}"`
+      : `Saved ${tabsToSave.length} tab${tabsToSave.length !== 1 ? 's' : ''} to "${groupName}"`;
+    showNotification(message, 'success');
     await loadSavedGroups();
   } catch (error) {
     hideLoading();
@@ -1429,7 +1513,7 @@ async function saveTabsToNewGroup(tabsToSave, groupName) {
 }
 
 // Save tabs to existing group
-async function saveTabsToExistingGroup(tabsToSave, groupId) {
+async function saveTabsToExistingGroup(tabsToSave, groupId, tabGroups = []) {
   try {
     showLoading('Checking for duplicates...');
 
@@ -1474,6 +1558,22 @@ async function saveTabsToExistingGroup(tabsToSave, groupId) {
       // No duplicates, save all
       showLoading('Saving tabs...');
       targetGroup.tabs.push(...tabsToSave);
+    }
+
+    // Merge tab groups (if any new groups are being added)
+    if (tabGroups.length > 0) {
+      if (!targetGroup.tabGroups) {
+        targetGroup.tabGroups = [];
+      }
+      // Merge new groups, avoiding duplicates by title+color
+      tabGroups.forEach(newGroup => {
+        const exists = targetGroup.tabGroups.some(g =>
+          g.title === newGroup.title && g.color === newGroup.color
+        );
+        if (!exists) {
+          targetGroup.tabGroups.push(newGroup);
+        }
+      });
     }
 
     await chrome.storage.local.set({ savedGroups: savedGroups });
