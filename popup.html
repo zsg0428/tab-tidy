@@ -30,6 +30,13 @@
     <!-- Search Bar -->
     <div class="search-container">
       <input type="text" id="searchInput" placeholder="Search tabs..." />
+      <select id="filterSelect" class="filter-select">
+        <option value="all">All Tabs</option>
+        <option value="pinned">📌 Pinned</option>
+        <option value="unpinned">Unpinned</option>
+        <option value="audible">🔊 Playing Audio</option>
+        <option value="muted">🔇 Muted</option>
+      </select>
       <button id="searchBtn" class="icon-btn">🔍</button>
     </div>
 

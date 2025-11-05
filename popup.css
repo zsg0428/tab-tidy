@@ -72,6 +72,28 @@ body {
   border-color: #4fc3f7;
 }
 
+.filter-select {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-size: 13px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 140px;
+}
+
+.filter-select:hover {
+  border-color: #4fc3f7;
+  background: #f7fafc;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #4fc3f7;
+  box-shadow: 0 0 0 3px rgba(79, 195, 247, 0.1);
+}
+
 /* Quick Actions at Bottom (Fixed within panel) */
 .quick-actions-bottom {
   display: flex;

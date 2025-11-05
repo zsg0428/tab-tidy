@@ -7,6 +7,7 @@ let selectedGroups = new Set();
 let tabSelectMode = false;
 let selectedTabs = new Set();
 let expandedGroups = new Set(); // Track which groups are expanded
+let currentFilter = 'all'; // Current filter selection
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -18,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Setup Event Listeners
 function setupEventListeners() {
   document.getElementById('searchInput').addEventListener('input', handleSearch);
+  document.getElementById('filterSelect').addEventListener('change', handleFilter);
   document.getElementById('closeDuplicatesBtn').addEventListener('click', closeDuplicateTabs);
   document.getElementById('saveAllBtn').addEventListener('click', saveAllTabs);
   document.getElementById('toggleGroupView').addEventListener('click', toggleGroupView);
@@ -264,16 +266,49 @@ function groupTabsByDomain(tabs) {
 // Handle search
 function handleSearch(e) {
   const query = e.target.value.toLowerCase().trim();
+  applyFilters(query);
+}
 
-  if (!query) {
-    filteredTabs = [...allTabs];
-  } else {
-    filteredTabs = allTabs.filter(tab =>
-      tab.title.toLowerCase().includes(query) ||
-      tab.url.toLowerCase().includes(query)
+// Handle filter selection
+function handleFilter(e) {
+  currentFilter = e.target.value;
+  const query = document.getElementById('searchInput').value.toLowerCase().trim();
+  applyFilters(query);
+}
+
+// Apply both search and filter
+function applyFilters(searchQuery = '') {
+  let tabs = [...allTabs];
+
+  // Apply filter first
+  switch (currentFilter) {
+    case 'pinned':
+      tabs = tabs.filter(tab => tab.pinned);
+      break;
+    case 'unpinned':
+      tabs = tabs.filter(tab => !tab.pinned);
+      break;
+    case 'audible':
+      tabs = tabs.filter(tab => tab.audible);
+      break;
+    case 'muted':
+      tabs = tabs.filter(tab => tab.mutedInfo && tab.mutedInfo.muted);
+      break;
+    case 'all':
+    default:
+      // No filter, use all tabs
+      break;
+  }
+
+  // Then apply search query
+  if (searchQuery) {
+    tabs = tabs.filter(tab =>
+      tab.title.toLowerCase().includes(searchQuery) ||
+      tab.url.toLowerCase().includes(searchQuery)
     );
   }
 
+  filteredTabs = tabs;
   renderTabs();
 }
 
