@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TabTidy Settings</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
+
+  <div class="settings-container">
+    <!-- Header -->
+    <div class="settings-header">
+      <div class="header-content">
+        <h1>🧹 TabTidy Settings</h1>
+        <p class="header-subtitle">Customize your tab management experience</p>
+      </div>
+      <button id="closeBtn" class="icon-btn" title="Close">✕</button>
+    </div>
+
+    <!-- Settings Content -->
+    <div class="settings-content">
+      <!-- General Settings -->
+      <section class="settings-section">
+        <h2 class="section-title">General</h2>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <label class="setting-label">Default View</label>
+            <p class="setting-description">Choose how tabs are displayed by default</p>
+          </div>
+          <select id="defaultView" class="setting-select">
+            <option value="list">List View</option>
+            <option value="grouped">Grouped by Domain</option>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <label class="setting-label">Show Tab Count Badges</label>
+            <p class="setting-description">Display number of tabs and groups in navigation</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="showTabCount">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Tab Management Settings -->
+      <section class="settings-section">
+        <h2 class="section-title">Tab Management</h2>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <label class="setting-label">After Saving Tabs</label>
+            <p class="setting-description">What should happen to tabs after saving them</p>
+          </div>
+          <select id="closeAfterSave" class="setting-select">
+            <option value="prompt">Ask me every time</option>
+            <option value="always">Always close tabs</option>
+            <option value="never">Keep tabs open</option>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <label class="setting-label">Duplicate Detection</label>
+            <p class="setting-description">Check for duplicate URLs when saving to existing groups</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="duplicateDetection">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Storage & Data Settings -->
+      <section class="settings-section">
+        <h2 class="section-title">Storage & Data</h2>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <label class="setting-label">Storage Usage</label>
+            <p class="setting-description" id="storageInfo">Calculating...</p>
+          </div>
+          <span class="storage-badge" id="storageBadge">0 KB</span>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <label class="setting-label">Export Data</label>
+            <p class="setting-description">Download all saved groups as JSON file</p>
+          </div>
+          <button id="exportBtn" class="action-btn secondary">Export</button>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <label class="setting-label">Import Data</label>
+            <p class="setting-description">Import saved groups from JSON file</p>
+          </div>
+          <button id="importBtn" class="action-btn secondary">Import</button>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <label class="setting-label">Clear All Data</label>
+            <p class="setting-description">Delete all saved groups permanently</p>
+          </div>
+          <button id="clearDataBtn" class="action-btn danger">Clear All</button>
+        </div>
+      </section>
+
+      <!-- About Section -->
+      <section class="settings-section">
+        <h2 class="section-title">About</h2>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <label class="setting-label">Version</label>
+            <p class="setting-description" id="versionInfo">1.0.0</p>
+          </div>
+        </div>
+
+        <div class="setting-item">
+          <div class="setting-info">
+            <label class="setting-label">TabTidy</label>
+            <p class="setting-description">Smart tab manager for Chrome</p>
+          </div>
+          <a href="https://github.com/zsg0428/tab-tidy" target="_blank" class="action-btn secondary">GitHub</a>
+        </div>
+      </section>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="settings-footer">
+      <button id="resetBtn" class="footer-btn secondary">Reset to Defaults</button>
+      <div class="footer-actions">
+        <button id="cancelBtn" class="footer-btn secondary">Cancel</button>
+        <button id="saveBtn" class="footer-btn primary">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden file input for import -->
+  <input type="file" id="fileInput" accept=".json" style="display: none;">
+
+  <script src="settings.js"></script>
+</body>
+</html>

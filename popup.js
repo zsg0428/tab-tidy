@@ -8,13 +8,61 @@ let tabSelectMode = false;
 let selectedTabs = new Set();
 let expandedGroups = new Set(); // Track which groups are expanded
 let currentFilter = 'all'; // Current filter selection
+let settings = null; // User settings
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
+  await loadSettings();
   await loadTabs();
   await loadSavedGroups();
   setupEventListeners();
 });
+
+// Load settings
+async function loadSettings() {
+  try {
+    const result = await chrome.storage.local.get('settings');
+    settings = result.settings || {
+      general: {
+        defaultView: 'list',
+        showTabCount: true
+      },
+      tabManagement: {
+        closeAfterSave: 'prompt',
+        duplicateDetection: true
+      }
+    };
+
+    // Apply settings
+    applySettings();
+  } catch (error) {
+    console.error('Error loading settings:', error);
+  }
+}
+
+// Apply settings to UI
+function applySettings() {
+  if (!settings) return;
+
+  // Apply default view
+  if (settings.general.defaultView === 'grouped') {
+    groupByDomain = true;
+    const btn = document.getElementById('toggleGroupView');
+    const icon = btn.querySelector('.toggle-icon');
+    const text = btn.querySelector('.toggle-text');
+    icon.textContent = '📂';
+    text.textContent = 'Grouped';
+    btn.classList.add('grouped');
+    btn.title = 'Switch to list view';
+  }
+
+  // Apply show tab count setting
+  if (!settings.general.showTabCount) {
+    document.querySelectorAll('.tab-count').forEach(badge => {
+      badge.style.display = 'none';
+    });
+  }
+}
 
 // Setup Event Listeners
 function setupEventListeners() {
@@ -25,7 +73,7 @@ function setupEventListeners() {
   document.getElementById('toggleGroupView').addEventListener('click', toggleGroupView);
   document.getElementById('helpBtn').addEventListener('click', showHelpDialog);
   document.getElementById('settingsBtn').addEventListener('click', () => {
-    showNotification('Settings coming in Phase 2!', 'info');
+    chrome.tabs.create({ url: 'settings.html' });
   });
 
   // Tab navigation
