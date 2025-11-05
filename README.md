@@ -13,14 +13,18 @@
 
 ## ✨ Features
 
-### Current Features (v1.0 MVP)
-- 🔍 **Smart Search** - Quickly find tabs by title or URL
-- 📋 **Tab List View** - See all your open tabs in one place
-- 🗂️ **Domain Grouping** - Group tabs by website
-- 💾 **Save Groups** - Save all tabs as a named collection
-- ↩️ **Restore Anytime** - Bring back saved tab groups instantly
+### Current Features (v1.0)
+- 🔍 **Smart Search & Filters** - Find tabs by title/URL, filter by pinned, audio, muted status
+- 📋 **Multiple Views** - List view or grouped by domain
+- 🎨 **Tab Organization** - Create Chrome native tab groups by domain with auto-colors
+- 💾 **Save & Restore Groups** - Save tab collections with their group structure
+- 📌 **Tab Management** - Pin, unpin, mute, unmute tabs directly
 - 🧹 **Remove Duplicates** - Clean up duplicate tabs with one click
-- ⚡ **Quick Switch** - Click to jump to any tab
+- ⏮️ **Undo Close** - Restore recently closed tabs
+- 📜 **History Panel** - View and restore recently closed tabs with timestamps
+- ☑️ **Batch Operations** - Select multiple tabs or groups for bulk actions
+- ⚙️ **Settings Page** - Customize default view and behavior
+- ⚡ **Quick Switch** - Click to jump to any tab instantly
 
 ## 🚀 Installation
 
@@ -43,51 +47,63 @@ cd tab-tidy
 
 ## 📖 Usage
 
-1. **Open TabTidy** - Click the icon in your Chrome toolbar
-2. **Search Tabs** - Use the search bar to find specific tabs
-3. **Save Groups** - Click "💾 Save All" to create a tab group
-4. **Restore Groups** - Click the restore button on any saved group
-5. **Clean Up** - Use "Close Duplicates" to remove duplicate tabs
-6. **Group View** - Toggle 📂 to see tabs organized by domain
+### Basic Operations
+1. **Open TabTidy** - Click the 🧹 icon in your Chrome toolbar
+2. **Search & Filter** - Use search bar and filter dropdown to find tabs
+3. **Manage Tabs** - Click icons to pin 📌, mute 🔇, or close ✖ tabs
+4. **Organize** - Click "🎨 Organize Tabs" to group by domain with Chrome native groups
+5. **Save Groups** - Click "💾 Save All" to preserve current tabs (with group structure)
+6. **Undo Close** - Click "⏮️ Undo Close" to restore recently closed tabs
 
-## Project Structure
+### Advanced Features
+- **Batch Operations** - Click "Select" to enable multi-select mode for tabs or groups
+- **History Panel** - Switch to "History" tab to view and restore recently closed tabs
+- **Settings** - Click ⚙️ to customize default view and close behavior
+- **List/Grouped View** - Toggle between flat list and domain-grouped display
+
+## 📁 Project Structure
 
 ```
 tabtidy/
 ├── manifest.json       # Extension configuration
-├── popup.html         # Main UI
-├── popup.css          # Styles
-├── popup.js           # UI logic
+├── popup.html         # Main popup UI
+├── popup.css          # Popup styles
+├── popup.js           # Popup logic
+├── settings.html      # Settings page UI
+├── settings.css       # Settings styles
+├── settings.js        # Settings logic
 ├── background.js      # Background service worker
 ├── icons/             # Extension icons
 └── README.md          # This file
 ```
-
-## Technologies
-
-- Chrome Extension Manifest V3
-- Vanilla JavaScript (no frameworks)
-- CSS3 with modern layouts
-
-## 🗺️ Roadmap
-
-### Coming Soon
-- [ ] Auto-suspend inactive tabs (save memory)
-- [ ] Keyboard shortcuts
-- [ ] Advanced search & filters
-- [ ] Session management & workspaces
-- [ ] Cloud sync across devices
-- [ ] Export to Markdown/JSON
-- [ ] Statistics dashboard
-
-See the [full implementation plan](https://github.com/zsg0428/tab-tidy/issues) for details.
 
 ## 🛠️ Technologies
 
 - Chrome Extension Manifest V3
 - Vanilla JavaScript (no frameworks)
 - CSS3 with modern gradient design
-- Chrome APIs: `tabs`, `storage`, `tabGroups`
+- Chrome APIs: `tabs`, `storage`, `tabGroups`, `sessions`
+
+## 🗺️ Roadmap
+
+### Completed ✅
+- ✅ Smart search & filters
+- ✅ Tab organization with Chrome groups
+- ✅ Save/restore groups with structure
+- ✅ Batch operations
+- ✅ History panel
+- ✅ Settings page
+- ✅ Pin/mute/unpin/unmute tabs
+- ✅ Undo close tab
+
+### Coming Soon
+- [ ] Auto-suspend inactive tabs (save memory)
+- [ ] Keyboard shortcuts
+- [ ] Session management & workspaces
+- [ ] Cloud sync across devices
+- [ ] Export groups to Markdown/JSON
+- [ ] Tab statistics dashboard
+- [ ] Custom themes
 
 ## 🤝 Contributing
 
