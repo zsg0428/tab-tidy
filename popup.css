@@ -300,6 +300,34 @@ body {
   margin-left: 8px;
 }
 
+.tab-action-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: all 0.2s;
+}
+
+.tab-item:hover .tab-action-btn {
+  opacity: 1;
+}
+
+.tab-action-btn:hover {
+  background: #f7fafc;
+  transform: scale(1.1);
+}
+
+.pin-btn:hover {
+  background: #fff5e6;
+}
+
+.mute-btn:hover {
+  background: #e6f7ff;
+}
+
 .save-btn {
   background: none;
   border: none;
