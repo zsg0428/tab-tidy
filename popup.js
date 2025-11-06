@@ -602,7 +602,7 @@ function renderSavedGroups(groups) {
         </div>
         <div class="group-actions">
           <button class="icon-btn expand-btn" title="Show tabs">▼</button>
-          <button class="icon-btn restore-btn" title="Restore tabs">↩️</button>
+          <button class="icon-btn restore-btn" title="Open tabs">↗️</button>
           <button class="icon-btn delete-btn" title="Delete group">🗑️</button>
         </div>
       </div>
@@ -989,11 +989,12 @@ async function loadHistory() {
     historyList.innerHTML = tabSessions.map(session => {
       const tab = session.tab;
       const timeAgo = getTimeAgo(tab.lastModified);
-      const favicon = tab.favIconUrl || 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><text y="12" font-size="12">🌐</text></svg>';
+      const defaultFavicon = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"%3E%3Ctext y="14" font-size="14"%3E🌐%3C/text%3E%3C/svg%3E';
+      const favicon = (tab.favIconUrl && tab.favIconUrl.startsWith('http')) ? tab.favIconUrl : defaultFavicon;
 
       return `
         <div class="history-item" data-session-id="${session.tab.sessionId}">
-          <img src="${favicon}" class="favicon" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22><text y=%2212%22 font-size=%2212%22>🌐</text></svg>'" />
+          <img src="${favicon}" class="favicon" width="16" height="16" />
           <div class="history-info">
             <div class="history-title">${escapeHtml(tab.title)}</div>
             <div class="history-meta">
@@ -1012,6 +1013,13 @@ async function loadHistory() {
         </div>
       `;
     }).join('');
+
+    // Add error handlers for favicons after rendering
+    historyList.querySelectorAll('.history-item img').forEach(img => {
+      img.onerror = function() {
+        this.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"%3E%3Ctext y="14" font-size="14"%3E🌐%3C/text%3E%3C/svg%3E';
+      };
+    });
 
     // Add click handlers for restore
     historyList.querySelectorAll('.history-item').forEach(item => {

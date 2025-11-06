@@ -477,15 +477,17 @@ body {
 }
 
 .select-all-btn {
-  padding: 6px 12px;
+  padding: 8px 16px;
   border: 1px solid #4fc3f7;
-  border-radius: 4px;
+  border-radius: 6px;
   background: white;
   color: #4fc3f7;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .select-all-btn:hover {
@@ -494,11 +496,15 @@ body {
 }
 
 .selected-count {
-  flex: 1;
   font-size: 13px;
   font-weight: 600;
   color: #4fc3f7;
+  min-width: 80px;
+  text-align: center;
+  flex-shrink: 0;
 }
+
+/* Removed - was causing text truncation */
 
 /* Saved Groups */
 .saved-groups {
