@@ -28,8 +28,8 @@
 
 ## 🚀 Installation
 
-### For Users (Coming Soon)
-Will be available on Chrome Web Store
+### From Chrome Web Store
+[Install TabTidy - Smart Tab Manager](https://chromewebstore.google.com/detail/tabtidy/pbpjieknnfkglcgddgojldkhgichidnh)
 
 ### For Developers
 
