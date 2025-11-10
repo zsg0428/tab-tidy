@@ -1,4 +1,4 @@
-# 🧹 TabTidy
+# 🧹 TabTidy - Smart Tab Manager
 
 <div align="center">
   <img src="icons/icon128.png" alt="TabTidy Logo" width="128" height="128">
