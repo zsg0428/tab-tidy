@@ -51,11 +51,8 @@ function applySettings() {
   if (settings.general.defaultView === 'grouped') {
     groupByDomain = true;
     const btn = document.getElementById('toggleGroupView');
-    const icon = btn.querySelector('.toggle-icon');
-    const text = btn.querySelector('.toggle-text');
-    icon.textContent = '📂';
-    text.textContent = 'Grouped';
-    btn.classList.add('grouped');
+    btn.textContent = '📂';
+    btn.classList.add('active');
     btn.title = 'Switch to list view';
   }
 
@@ -119,6 +116,11 @@ function switchTab(tabName) {
     } else {
       panel.classList.remove('active');
     }
+  });
+
+  // Update nav actions (show/hide panel-specific buttons)
+  document.querySelectorAll('.panel-actions').forEach(actions => {
+    actions.classList.toggle('active', actions.dataset.for === tabName);
   });
 }
 
@@ -856,18 +858,14 @@ function toggleGroupView() {
   groupByDomain = !groupByDomain;
 
   const btn = document.getElementById('toggleGroupView');
-  const icon = btn.querySelector('.toggle-icon');
-  const text = btn.querySelector('.toggle-text');
 
   if (groupByDomain) {
-    icon.textContent = '📂';
-    text.textContent = 'Grouped View';
-    btn.classList.add('grouped');
+    btn.textContent = '📂';
+    btn.classList.add('active');
     btn.title = 'Switch to flat list view';
   } else {
-    icon.textContent = '📋';
-    text.textContent = 'List View';
-    btn.classList.remove('grouped');
+    btn.textContent = '📋';
+    btn.classList.remove('active');
     btn.title = 'Switch to grouped display';
   }
 
@@ -1324,21 +1322,17 @@ function toggleSelectMode() {
   selectMode = !selectMode;
 
   const btn = document.getElementById('toggleSelectMode');
-  const icon = btn.querySelector('.toggle-icon');
-  const text = btn.querySelector('.toggle-text');
   const bulkActions = document.getElementById('bulkActions');
   const selectAllBtn = document.getElementById('selectAllGroupsBtn');
 
   if (selectMode) {
-    icon.textContent = '✖️';
-    text.textContent = 'Cancel';
-    btn.classList.add('grouped');
+    btn.textContent = '✖️';
+    btn.classList.add('active');
     btn.title = 'Exit selection mode';
     bulkActions.style.display = 'flex';
   } else {
-    icon.textContent = '☑️';
-    text.textContent = 'Select';
-    btn.classList.remove('grouped');
+    btn.textContent = '☑️';
+    btn.classList.remove('active');
     btn.title = 'Select multiple groups';
     bulkActions.style.display = 'none';
     // Clear selections when exiting
@@ -1481,21 +1475,17 @@ function toggleTabSelectMode() {
   tabSelectMode = !tabSelectMode;
 
   const btn = document.getElementById('toggleTabSelectMode');
-  const icon = btn.querySelector('.toggle-icon');
-  const text = btn.querySelector('.toggle-text');
   const bulkActions = document.getElementById('tabBulkActions');
   const selectAllBtn = document.getElementById('selectAllTabsBtn');
 
   if (tabSelectMode) {
-    icon.textContent = '✖️';
-    text.textContent = 'Cancel';
-    btn.classList.add('grouped');
+    btn.textContent = '✖️';
+    btn.classList.add('active');
     btn.title = 'Exit selection mode';
     bulkActions.style.display = 'flex';
   } else {
-    icon.textContent = '☑️';
-    text.textContent = 'Select';
-    btn.classList.remove('grouped');
+    btn.textContent = '☑️';
+    btn.classList.remove('active');
     btn.title = 'Select multiple tabs';
     bulkActions.style.display = 'none';
     // Clear selections when exiting
