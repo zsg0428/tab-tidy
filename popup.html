@@ -20,7 +20,6 @@
     <!-- Header -->
     <div class="header">
       <h1>🧹 TabTidy</h1>
-      <div class="header-subtitle">Smart Tab Manager</div>
       <div class="header-actions">
         <button id="helpBtn" class="icon-btn" title="Help & Features">ℹ️</button>
         <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
@@ -37,39 +36,42 @@
         <option value="audible">🔊 Playing Audio</option>
         <option value="muted">🔇 Muted</option>
       </select>
-      <button id="searchBtn" class="icon-btn">🔍</button>
     </div>
 
     <!-- Tabs Navigation -->
     <div class="tabs-nav">
-      <button class="tab-button active" data-tab="current">
-        Current Tabs
-        <span class="tab-count" id="currentTabCount">0</span>
-      </button>
-      <button class="tab-button" data-tab="saved">
-        Saved Groups
-        <span class="tab-count" id="savedGroupCount">0</span>
-      </button>
-      <button class="tab-button" data-tab="history">
-        History
-        <span class="tab-count" id="historyCount">0</span>
-      </button>
+      <div class="tabs-nav-buttons">
+        <button class="tab-button active" data-tab="current">
+          Tabs
+          <span class="tab-count" id="currentTabCount">0</span>
+        </button>
+        <button class="tab-button" data-tab="saved">
+          Groups
+          <span class="tab-count" id="savedGroupCount">0</span>
+        </button>
+        <button class="tab-button" data-tab="history">
+          History
+          <span class="tab-count" id="historyCount">0</span>
+        </button>
+      </div>
+      <div class="tabs-nav-actions">
+        <div class="panel-actions active" data-for="current">
+          <button id="toggleTabSelectMode" class="nav-action-btn" title="Select multiple tabs">☑️</button>
+          <button id="toggleGroupView" class="nav-action-btn" title="Toggle display mode">📋</button>
+        </div>
+        <div class="panel-actions" data-for="saved">
+          <button id="toggleSelectMode" class="nav-action-btn" title="Select multiple groups">☑️</button>
+        </div>
+        <div class="panel-actions" data-for="history">
+          <button id="clearHistoryBtn" class="nav-action-btn" title="Clear all history">🗑️</button>
+        </div>
+      </div>
     </div>
 
     <!-- Tab Panels -->
     <div class="tab-panels">
       <!-- Current Tabs Panel -->
       <div class="tab-panel active" id="currentTabsPanel">
-        <div class="panel-header">
-          <button id="toggleTabSelectMode" class="toggle-view-btn" title="Select multiple tabs">
-            <span class="toggle-icon">☑️</span>
-            <span class="toggle-text">Select</span>
-          </button>
-          <button id="toggleGroupView" class="toggle-view-btn" title="Toggle display mode">
-            <span class="toggle-icon">📋</span>
-            <span class="toggle-text">List View</span>
-          </button>
-        </div>
         <div id="tabBulkActions" class="bulk-actions" style="display: none;">
           <button id="selectAllTabsBtn" class="select-all-btn" title="Select all tabs">Select All</button>
           <span id="selectedTabCount" class="selected-count">0 selected</span>
@@ -80,26 +82,16 @@
 
         <!-- Quick Actions for Current Tabs (Fixed at Bottom) -->
         <div class="quick-actions-bottom">
-          <div class="quick-actions-left">
-            <button id="groupByDomainBtn" class="action-btn secondary" title="Organize tabs into groups by domain">🎨 Organize Tabs</button>
-            <button id="ungroupAllBtn" class="action-btn secondary" title="Remove tab organization">✖️ Unorganize</button>
-            <button id="undoCloseBtn" class="action-btn secondary" title="Restore last closed tab">⏮️ Undo Close</button>
-          </div>
-          <div class="quick-actions-right">
-            <button id="closeDuplicatesBtn" class="action-btn">Close Duplicates</button>
-            <button id="saveAllBtn" class="action-btn primary">💾 Save All</button>
-          </div>
+          <button id="groupByDomainBtn" class="action-btn secondary" title="Organize tabs into groups by domain">🎨 Organize</button>
+          <button id="ungroupAllBtn" class="action-btn secondary" title="Remove tab organization">✖️ Ungroup</button>
+          <button id="undoCloseBtn" class="action-btn secondary" title="Restore last closed tab">⏮️ Undo</button>
+          <button id="closeDuplicatesBtn" class="action-btn" title="Close duplicate tabs">✖️ Dupes</button>
+          <button id="saveAllBtn" class="action-btn primary" title="Save all tabs">💾 Save</button>
         </div>
       </div>
 
       <!-- Saved Groups Panel -->
       <div class="tab-panel" id="savedGroupsPanel">
-        <div class="panel-header">
-          <button id="toggleSelectMode" class="toggle-view-btn" title="Select multiple groups">
-            <span class="toggle-icon">☑️</span>
-            <span class="toggle-text">Select</span>
-          </button>
-        </div>
         <div id="bulkActions" class="bulk-actions" style="display: none;">
           <button id="selectAllGroupsBtn" class="select-all-btn" title="Select all groups">Select All</button>
           <span id="selectedCount" class="selected-count">0 selected</span>
@@ -111,12 +103,6 @@
 
       <!-- History Panel -->
       <div class="tab-panel" id="historyPanel">
-        <div class="panel-header">
-          <button id="clearHistoryBtn" class="toggle-view-btn" title="Clear all history">
-            <span class="toggle-icon">🗑️</span>
-            <span class="toggle-text">Clear All</span>
-          </button>
-        </div>
         <div id="historyList" class="history-list"></div>
       </div>
     </div>
