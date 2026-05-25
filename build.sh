@@ -17,6 +17,9 @@ cp manifest.json dist/
 cp popup.html dist/
 cp popup.css dist/
 cp popup.js dist/
+cp settings.html dist/
+cp settings.css dist/
+cp settings.js dist/
 cp background.js dist/
 cp -r icons dist/
 cp README.md dist/
