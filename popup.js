@@ -76,7 +76,7 @@ function setupEventListeners() {
   document.getElementById('undoCloseBtn').addEventListener('click', undoCloseTab);
   document.getElementById('helpBtn').addEventListener('click', showHelpDialog);
   document.getElementById('settingsBtn').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'settings.html' });
+    chrome.tabs.create({ url: chrome.runtime.getURL('settings.html') });
   });
 
   // Tab navigation
@@ -87,7 +87,8 @@ function setupEventListeners() {
   // Bulk actions for saved groups
   document.getElementById('toggleSelectMode').addEventListener('click', toggleSelectMode);
   document.getElementById('selectAllGroupsBtn').addEventListener('click', selectAllGroups);
-  document.getElementById('restoreSelectedBtn').addEventListener('click', restoreSelectedGroups);
+  document.getElementById('restoreSelectedBtn').addEventListener('click', () => restoreSelectedGroups(false));
+  document.getElementById('restoreSelectedNewWindowBtn').addEventListener('click', () => restoreSelectedGroups(true));
   document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelectedGroups);
 
   // Bulk actions for current tabs
@@ -604,7 +605,8 @@ function renderSavedGroups(groups) {
         </div>
         <div class="group-actions">
           <button class="icon-btn expand-btn" title="Show tabs">▼</button>
-          <button class="icon-btn restore-btn" title="Open tabs">↗️</button>
+          <button class="icon-btn restore-btn" title="Open in current window">↗️</button>
+          <button class="icon-btn restore-new-window-btn" title="Open in new window">🪟</button>
           <button class="icon-btn delete-btn" title="Delete group">🗑️</button>
         </div>
       </div>
@@ -758,7 +760,15 @@ function renderSavedGroups(groups) {
     groupItem.querySelector('.restore-btn').addEventListener('click', async (e) => {
       e.stopPropagation();
       if (!selectMode) {
-        await restoreGroup(group);
+        await restoreGroup(group, false);
+      }
+    });
+
+    // Restore group in new window (only in non-select mode)
+    groupItem.querySelector('.restore-new-window-btn').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!selectMode) {
+        await restoreGroup(group, true);
       }
     });
 
@@ -775,24 +785,53 @@ function renderSavedGroups(groups) {
 }
 
 // Restore group (with tab groups if saved)
-async function restoreGroup(group) {
-  showLoading('Restoring tabs...');
+// openInNewWindow: when true, opens all tabs in a new browser window
+async function restoreGroup(group, openInNewWindow = false) {
+  if (!group.tabs || group.tabs.length === 0) {
+    showNotification('Group has no tabs to open', 'info');
+    return;
+  }
+
+  showLoading(openInNewWindow ? 'Opening in new window...' : 'Restoring tabs...');
 
   try {
     const hasTabGroups = group.tabGroups && group.tabGroups.length > 0;
+    let targetWindowId; // undefined => current window
+    let createdTabs = [];
 
-    if (hasTabGroups) {
-      // Restore with tab groups
-      const groupIdMap = new Map(); // Map old groupId -> new Chrome groupId
-      const createdTabs = [];
+    if (openInNewWindow) {
+      // Create a new window with the first URL, then add the rest as tabs.
+      // Splitting this way lets us collect tab IDs reliably for regrouping.
+      const [firstTab, ...restTabs] = group.tabs;
+      const newWindow = await chrome.windows.create({
+        url: firstTab.url,
+        focused: true
+      });
+      targetWindowId = newWindow.id;
 
-      // First, create all tabs
+      const firstCreated = newWindow.tabs && newWindow.tabs[0];
+      if (firstCreated) {
+        createdTabs.push({ ...firstCreated, originalGroupId: firstTab.groupId });
+      }
+
+      for (const tab of restTabs) {
+        const newTab = await chrome.tabs.create({
+          url: tab.url,
+          active: false,
+          windowId: targetWindowId
+        });
+        createdTabs.push({ ...newTab, originalGroupId: tab.groupId });
+      }
+    } else {
+      // Restore into the current window (original behavior)
       for (const tab of group.tabs) {
         const newTab = await chrome.tabs.create({ url: tab.url, active: false });
         createdTabs.push({ ...newTab, originalGroupId: tab.groupId });
       }
+    }
 
-      // Group tabs by their original groupId
+    // Rebuild tab groups within whichever window we opened in
+    if (hasTabGroups) {
       const tabsByGroup = new Map();
       createdTabs.forEach(tab => {
         if (tab.originalGroupId) {
@@ -803,11 +842,14 @@ async function restoreGroup(group) {
         }
       });
 
-      // Create tab groups and assign tabs
       for (const [oldGroupId, tabIds] of tabsByGroup) {
         const groupInfo = group.tabGroups.find(g => g.id === oldGroupId);
         if (groupInfo && tabIds.length > 0) {
-          const newGroupId = await chrome.tabs.group({ tabIds });
+          const groupOptions = { tabIds };
+          if (targetWindowId !== undefined) {
+            groupOptions.createProperties = { windowId: targetWindowId };
+          }
+          const newGroupId = await chrome.tabs.group(groupOptions);
           await chrome.tabGroups.update(newGroupId, {
             title: groupInfo.title || '',
             color: groupInfo.color,
@@ -819,11 +861,6 @@ async function restoreGroup(group) {
       hideLoading();
       showNotification(`Restored ${group.tabs.length} tabs with ${group.tabGroups.length} group${group.tabGroups.length !== 1 ? 's' : ''}`);
     } else {
-      // Restore without tab groups (legacy behavior)
-      for (const tab of group.tabs) {
-        await chrome.tabs.create({ url: tab.url, active: false });
-      }
-
       hideLoading();
       showNotification(`Restored ${group.tabs.length} tabs`);
     }
@@ -1398,7 +1435,8 @@ async function selectAllGroups() {
 }
 
 // Restore selected groups
-async function restoreSelectedGroups() {
+// openInNewWindow: when true, opens all tabs across all selected groups in a single new window
+async function restoreSelectedGroups(openInNewWindow = false) {
   if (selectedGroups.size === 0) {
     showNotification('No groups selected', 'info');
     return;
@@ -1411,23 +1449,37 @@ async function restoreSelectedGroups() {
 
   if (groupsToRestore.length === 0) return;
 
-  // Show loading
-  showLoading('Restoring tabs...');
-
-  // Restore all selected groups
-  for (const group of groupsToRestore) {
-    for (const tab of group.tabs) {
-      await chrome.tabs.create({ url: tab.url, active: false });
-    }
+  // Collect all URLs (skip groups with no tabs)
+  const allUrls = groupsToRestore.flatMap(g => (g.tabs || []).map(t => t.url));
+  if (allUrls.length === 0) {
+    showNotification('Selected groups have no tabs', 'info');
+    return;
   }
 
-  hideLoading();
-  showNotification(`Restored ${groupsToRestore.length} group${groupsToRestore.length !== 1 ? 's' : ''}`, 'success');
+  showLoading(openInNewWindow ? 'Opening in new window...' : 'Restoring tabs...');
 
-  // Exit select mode
-  selectedGroups.clear();
-  toggleSelectMode();
-  window.close();
+  try {
+    if (openInNewWindow) {
+      // Open all URLs in one new window
+      await chrome.windows.create({ url: allUrls, focused: true });
+    } else {
+      for (const url of allUrls) {
+        await chrome.tabs.create({ url, active: false });
+      }
+    }
+
+    hideLoading();
+    showNotification(`Restored ${groupsToRestore.length} group${groupsToRestore.length !== 1 ? 's' : ''}`, 'success');
+
+    // Exit select mode
+    selectedGroups.clear();
+    toggleSelectMode();
+    window.close();
+  } catch (error) {
+    hideLoading();
+    console.error('Error restoring selected groups:', error);
+    showNotification('Error restoring groups', 'error');
+  }
 }
 
 // Delete selected groups
